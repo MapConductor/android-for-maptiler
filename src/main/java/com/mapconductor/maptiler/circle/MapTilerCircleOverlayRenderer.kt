@@ -4,10 +4,8 @@ import androidx.compose.ui.graphics.toArgb
 import com.mapconductor.core.circle.CircleEntityInterface
 import com.mapconductor.core.circle.CircleOverlayRendererInterface
 import com.mapconductor.core.circle.CircleState
-import com.mapconductor.core.features.GeoPointInterface
-import com.mapconductor.core.features.normalize
-import com.mapconductor.core.spherical.Spherical
-import com.mapconductor.core.spherical.splitByMeridian
+import com.mapconductor.core.geometry.OverlayGeoJson
+import com.mapconductor.core.geometry.circleToRing
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -153,29 +151,11 @@ class MapTilerCircleOverlayRenderer(
      * 子午線をまたぐ場合は MultiPolygon へ分割する。
      */
     private fun buildGeoJson(state: CircleState): String? {
-        if (state.radiusMeters <= 0.0) return null
-        val ring =
-            (0 until SEGMENTS)
-                .map { i -> Spherical.computeOffset(state.center, state.radiusMeters, 360.0 * i / SEGMENTS) }
-                .map { it.normalize() }
-        val rings = splitByMeridian(ring, geodesic = true).filter { it.size >= 3 }
-        if (rings.isEmpty()) return null
-
-        return if (rings.size == 1) {
-            val coordinates = "[${ringToJson(rings.first())}]"
-            "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":$coordinates},\"properties\":{}}"
-        } else {
-            val polygons = rings.joinToString(separator = ",") { "[${ringToJson(it)}]" }
-            "{\"type\":\"Feature\",\"geometry\":" +
-                "{\"type\":\"MultiPolygon\",\"coordinates\":[$polygons]},\"properties\":{}}"
-        }
-    }
-
-    private fun ringToJson(ring: List<GeoPointInterface>): String {
-        val closed = if (ring.first() != ring.last()) ring + ring.first() else ring
-        return closed.joinToString(separator = ",", prefix = "[", postfix = "]") { point ->
-            "[${point.longitude},${point.latitude}]"
-        }
+        // リングは中心経度まわりに連続化（unwrap）済み。MapLibre GL JS は ±180 を超える
+        // 経度を扱えるため、±180 を跨ぐ円も分割せず 1 枚の Polygon として描画できる。
+        val ring = circleToRing(state.center, state.radiusMeters, state.geodesic)
+        if (ring.isEmpty()) return null
+        return OverlayGeoJson.ringsFeature(listOf(ring))
     }
 
     /**
@@ -195,7 +175,6 @@ class MapTilerCircleOverlayRenderer(
 
     private companion object {
         const val TAG = "MapTilerCircle"
-        const val SEGMENTS = 128
         const val FILL_COLOR = "fill-color"
         const val FILL_OPACITY = "fill-opacity"
         const val LINE_COLOR = "line-color"

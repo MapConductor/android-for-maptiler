@@ -1,15 +1,12 @@
 package com.mapconductor.maptiler.polygon
 
 import androidx.compose.ui.graphics.toArgb
-import com.mapconductor.core.features.GeoPointInterface
-import com.mapconductor.core.features.normalize
+import com.mapconductor.core.geometry.OverlayGeoJson
+import com.mapconductor.core.geometry.buildUnwrappedPolygonRings
 import com.mapconductor.core.polygon.PolygonEntityInterface
 import com.mapconductor.core.polygon.PolygonOverlayRendererInterface
 import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polygon.unionHoles
-import com.mapconductor.core.spherical.createInterpolatePoints
-import com.mapconductor.core.spherical.createLinearInterpolatePoints
-import com.mapconductor.core.spherical.splitByMeridian
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -182,46 +179,13 @@ class MapTilerPolygonOverlayRenderer(
      * 確実に結合されるよう、Compose 層だけでなくレンダラ側でも結合する。
      */
     private fun buildGeoJson(state: PolygonState): String? {
-        if (state.points.size < 3) return null
         val resolved = if (state.holes.size > 1) state.unionHoles() else state
-        val outer = interpolate(resolved.points, resolved.geodesic).map { it.normalize() }
-        val outerRings = splitByMeridian(outer, resolved.geodesic).filter { it.size >= 3 }
-        if (outerRings.isEmpty()) return null
-
-        val includeHoles = resolved.holes.isNotEmpty() && outerRings.size == 1
-
-        return if (outerRings.size == 1) {
-            val rings = mutableListOf(ringToJson(outerRings.first()))
-            if (includeHoles) {
-                resolved.holes.forEach { hole ->
-                    val h = interpolate(hole, resolved.geodesic).map { it.normalize() }
-                    if (h.size >= 3) rings.add(ringToJson(h))
-                }
-            }
-            val coordinates = rings.joinToString(separator = ",", prefix = "[", postfix = "]")
-            "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":$coordinates},\"properties\":{}}"
-        } else {
-            val polygons = outerRings.joinToString(separator = ",") { "[${ringToJson(it)}]" }
-            "{\"type\":\"Feature\",\"geometry\":" +
-                "{\"type\":\"MultiPolygon\",\"coordinates\":[$polygons]},\"properties\":{}}"
-        }
+        // unwrap 座標の外周 1 リング + 全穴。MapLibre GL JS は ±180 超の経度を扱えるため
+        // 分割不要で、±180 跨ぎのポリゴンでも穴を保持できる。
+        return OverlayGeoJson.polygonFeature(
+            buildUnwrappedPolygonRings(resolved.points, resolved.holes, resolved.geodesic),
+        )
     }
-
-    private fun ringToJson(ring: List<GeoPointInterface>): String {
-        val closed = if (ring.first() != ring.last()) ring + ring.first() else ring
-        return closed.joinToString(separator = ",", prefix = "[", postfix = "]") { point ->
-            "[${point.longitude},${point.latitude}]"
-        }
-    }
-
-    private fun interpolate(
-        points: List<GeoPointInterface>,
-        geodesic: Boolean,
-    ): List<GeoPointInterface> =
-        when (geodesic) {
-            true -> createInterpolatePoints(points)
-            false -> createLinearInterpolatePoints(points)
-        }
 
     private companion object {
         const val TAG = "MapTilerPolygon"

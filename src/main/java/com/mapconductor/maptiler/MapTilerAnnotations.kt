@@ -1,7 +1,5 @@
 package com.mapconductor.maptiler
 
-import android.view.animation.BounceInterpolator
-import android.view.animation.LinearInterpolator
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.tween
@@ -31,6 +29,8 @@ import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.types.MTPoint
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import android.view.animation.BounceInterpolator
+import android.view.animation.LinearInterpolator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -93,11 +93,23 @@ internal fun MapTilerMarkerOverlay(
                 MarkerAnimation.Drop -> LinearInterpolator()
             }
         dropTranslation.snapTo(startTranslation)
+        // 演出開始を通知する（他プロバイダの onAnimate 経路と同じく onAnimateStart / onAnimateEnd を発火する）。
+        // MapTiler のマーカーはコンポーズオーバーレイのため、コアの MarkerController 経由ではなくこの演出効果から
+        // 直接発火する。これにより onAnimateEnd 購読側（例: ドロップ完了後に InfoBubble を表示する画面）が機能する。
+        marker.onAnimateStart?.invoke(marker)
         dropTranslation.animateTo(
             targetValue = 0f,
-            animationSpec = tween(durationMillis = durationMs, easing = Easing { f -> interpolator.getInterpolation(f) }),
+            animationSpec =
+                tween(
+                    durationMillis = durationMs,
+                    easing =
+                        Easing { f ->
+                            interpolator.getInterpolation(f)
+                        },
+                ),
         )
-        // 演出は一度きり。他プロバイダと同様に完了後アニメーション指定を解除する。
+        // 演出完了を通知してからアニメーション指定を解除する（演出は一度きり）。
+        marker.onAnimateEnd?.invoke(marker)
         marker.animate(null)
     }
 
