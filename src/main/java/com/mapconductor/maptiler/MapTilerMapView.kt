@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -62,7 +63,7 @@ fun MapTilerMapView(
     state: MapTilerViewState,
     modifier: Modifier = Modifier,
     markerTiling: MarkerTilingOptions? = null,
-    @Suppress("UNUSED_PARAMETER") cameraRestriction: CameraRestriction? = null,
+    cameraRestriction: CameraRestriction? = null,
     onMapLoaded: OnMapLoadedHandler? = null,
     onMapClick: OnMapEventHandler? = null,
     @Suppress("UNUSED_PARAMETER") onMapLongClick: OnMapEventHandler? = null,
@@ -91,6 +92,20 @@ fun MapTilerMapView(
         // markerTiling 指定ページ（多数マーカー）はマーカータイリング（ラスターレイヤ）経路で描画する。
         controller.useMarkerLayer = markerTiling != null
         controller.markerTilingOptions = markerTiling
+
+        // This provider builds its view itself rather than going through
+        // MapViewBase, so the shared gesture dispatch has to be wired here.
+        // Re-key on the loaded flag as well: gesture calls go over the JS bridge,
+        // which drops anything sent before the page is ready.
+        val mapLoaded by controller.mapLoaded.collectAsState()
+        LaunchedEffect(controller, state.uiSettings, mapLoaded) {
+            controller.applyUISettings(state.uiSettings)
+        }
+
+        // 範囲制限も JS ブリッジ経由なので、ページ読み込み完了フラグを key に含める。
+        LaunchedEffect(controller, cameraRestriction, mapLoaded) {
+            controller.setCameraRestriction(cameraRestriction)
+        }
 
         val options =
             remember(mtController) {

@@ -8,12 +8,13 @@ import com.mapconductor.core.controller.BaseMapViewController
 import com.mapconductor.core.controller.OverlayControllerInterface
 import com.mapconductor.core.features.GeoPoint
 import com.mapconductor.core.features.GeoRectBounds
-import com.mapconductor.core.spherical.Spherical
-import com.mapconductor.maptiler.zoom.ZoomAltitudeConverter
 import com.mapconductor.core.groundimage.GroundImageCapableInterface
 import com.mapconductor.core.groundimage.GroundImageState
 import com.mapconductor.core.groundimage.OnGroundImageEventHandler
 import com.mapconductor.core.map.MapCameraPosition
+import com.mapconductor.core.map.MapGesture
+import com.mapconductor.core.map.MapUISettings
+import com.mapconductor.core.map.MapUISettingsDiagnostics
 import com.mapconductor.core.map.MutableMapServiceRegistry
 import com.mapconductor.core.map.VisibleRegion
 import com.mapconductor.core.marker.MarkerCapableInterface
@@ -36,6 +37,7 @@ import com.mapconductor.core.polyline.PolylineEvent
 import com.mapconductor.core.polyline.PolylineState
 import com.mapconductor.core.raster.RasterLayerCapableInterface
 import com.mapconductor.core.raster.RasterLayerState
+import com.mapconductor.core.spherical.Spherical
 import com.mapconductor.maptiler.circle.MapTilerCircleController
 import com.mapconductor.maptiler.circle.MapTilerCircleOverlayRenderer
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageController
@@ -48,21 +50,25 @@ import com.mapconductor.maptiler.polyline.MapTilerPolylineController
 import com.mapconductor.maptiler.polyline.MapTilerPolylineOverlayRenderer
 import com.mapconductor.maptiler.raster.MapTilerRasterLayerController
 import com.mapconductor.maptiler.raster.MapTilerRasterLayerOverlayRenderer
+import com.mapconductor.core.map.CameraRestriction
+import com.mapconductor.maptiler.zoom.ZoomAltitudeConverter
 import com.maptiler.maptilersdk.map.MTMapViewController
+import com.maptiler.maptilersdk.map.types.MTBounds
+import com.maptiler.maptilersdk.map.gestures.MTGestureType
 import com.maptiler.maptilersdk.map.options.MTCameraOptions
 import com.maptiler.maptilersdk.map.options.MTFitBoundsOptions
 import com.maptiler.maptilersdk.map.options.MTFlyToOptions
 import com.maptiler.maptilersdk.map.options.MTPaddingOptions
 import com.maptiler.maptilersdk.map.style.MTStyle
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.tan
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.tan
 
 /**
  * MapConductor コアと MapTiler SDK（[MTMapViewController]）を橋渡しするマップコントローラ。
@@ -552,6 +558,75 @@ class MapTilerMapViewController(
         mtController.fitBounds(mtBounds, options)
     }
 
+    /**
+     * カメラの可動範囲（パン範囲・ズーム上下限）を制限する。
+     *
+     * MapTiler SDK はネイティブに範囲制限 API（[com.maptiler.maptilersdk.map.MTMapViewController.setMaxBounds] /
+     * `setMinZoom` / `setMaxZoom`）を持つため、Google/Mapbox/MapLibre と同じくネイティブ適用で
+     * スムーズに制限する（クランプ方式は不要）。
+     *
+     * ズームは統一ズーム（Google 準拠）で受け取り、MapTiler のズーム体系へ変換して適用する。
+     * 未指定時は既定の下限/上限へ戻すことで制限解除とする。
+     */
+    override fun setCameraRestriction(restriction: CameraRestriction?) {
+        super<BaseMapViewController>.setCameraRestriction(restriction)
+        mainCoroutine.launch {
+            runCatching {
+                mtController.setMaxBounds(
+                    restriction?.bounds?.toMTBounds() ?: WORLD_BOUNDS,
+                )
+                mtController.setMinZoom(
+                    restriction?.minZoom?.let { ZoomAltitudeConverter.googleZoomToMaptilerZoom(it) }
+                        ?: DEFAULT_MIN_ZOOM,
+                )
+                mtController.setMaxZoom(
+                    restriction?.maxZoom?.let { ZoomAltitudeConverter.googleZoomToMaptilerZoom(it) }
+                        ?: DEFAULT_MAX_ZOOM,
+                )
+            }
+        }
+    }
+
+    override fun applyUISettings(settings: MapUISettings) {
+        val gestures = mtController.gestureService ?: return
+
+        if (settings.scrollGesture) {
+            gestures.enableDragPanGesture()
+        } else {
+            gestures.disableGesture(MTGestureType.DRAG_PAN)
+        }
+
+        if (settings.tiltGesture) {
+            gestures.enableTwoFingerDragPitchGesture()
+        } else {
+            gestures.disableGesture(MTGestureType.TWO_FINGERS_DRAG_PITCH)
+        }
+
+        if (settings.zoomGesture) {
+            gestures.enableDoubleTapZoomInGesture()
+        } else {
+            gestures.disableGesture(MTGestureType.DOUBLE_TAP_ZOOM_IN)
+        }
+
+        // MapTiler bundles pinch-zoom and rotation into one PINCH_ROTATE_AND_ZOOM
+        // gesture, so neither can be switched off alone; only drop it when both are
+        // off. The discrete double-tap zoom above still follows zoomGesture.
+        if (settings.zoomGesture || settings.rotateGesture) {
+            gestures.enablePinchRotateAndZoomGesture()
+        } else {
+            gestures.disableGesture(MTGestureType.PINCH_ROTATE_AND_ZOOM)
+        }
+
+        if (settings.zoomGesture != settings.rotateGesture) {
+            MapUISettingsDiagnostics.warnIfRequested(
+                false,
+                gesture = if (settings.zoomGesture) MapGesture.Rotate else MapGesture.Zoom,
+                provider = "MapTiler",
+                reason = "pinch zoom and rotation share one gesture, so they can only be disabled together",
+            )
+        }
+    }
+
     override fun setMapDesignType(value: MapTilerMapDesignTypeInterface) {
         mtController.style = MTStyle(value.referenceStyle, value.variant)
     }
@@ -611,6 +686,13 @@ class MapTilerMapViewController(
     }
 
     companion object {
+        /** 制限解除時に渡す全世界の矩形。MapTiler には maxBounds のクリア API が無いため。 */
+        private val WORLD_BOUNDS = MTBounds(west = -180.0, south = -90.0, east = 180.0, north = 90.0)
+
+        /** MapTiler(MapLibre GL) の既定ズーム下限・上限。 */
+        private const val DEFAULT_MIN_ZOOM = 0.0
+        private const val DEFAULT_MAX_ZOOM = 22.0
+
         /**
          * MapTiler（MapLibre GL / web mercator）ネイティブズームと統一ズーム（Google Maps 準拠）の差。
          *
