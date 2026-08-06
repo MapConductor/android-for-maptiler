@@ -1,5 +1,6 @@
 package com.mapconductor.maptiler.raster
 
+import com.mapconductor.core.raster.RasterHeaderRuleSet
 import com.mapconductor.core.raster.RasterLayerEntityInterface
 import com.mapconductor.core.raster.RasterLayerOverlayRendererInterface
 import com.mapconductor.core.raster.RasterLayerSource
@@ -31,9 +32,17 @@ class MapTilerRasterLayerOverlayRenderer(
     private val mtController: MTMapViewController,
     override val coroutine: CoroutineScope = CoroutineScope(Dispatchers.Main),
 ) : RasterLayerOverlayRendererInterface<MapTilerRasterLayerHandle> {
+    /**
+     * MapTiler Android は WebView(MapLibre GL JS) 越しにタイルを取るため、
+     * ネイティブ側からリクエストヘッダを差し替える口が無い。
+     */
     override suspend fun onAdd(
         data: List<RasterLayerOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerRasterLayerHandle?> = data.map { addLayer(it.state) }
+    ): List<MapTilerRasterLayerHandle?> =
+        data.map {
+            RasterHeaderRuleSet.warnUnsupported(provider = "MapTiler", state = it.state)
+            addLayer(it.state)
+        }
 
     override suspend fun onChange(
         data: List<RasterLayerOverlayRendererInterface.ChangeParamsInterface<MapTilerRasterLayerHandle>>,

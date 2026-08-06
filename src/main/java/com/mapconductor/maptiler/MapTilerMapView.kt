@@ -34,6 +34,7 @@ import com.mapconductor.core.map.LocalMapOverlayRegistry
 import com.mapconductor.core.map.LocalMapServiceRegistry
 import com.mapconductor.core.map.LocalMapViewController
 import com.mapconductor.core.map.MapCameraPosition
+import com.mapconductor.core.marker.MarkerRenderingSupportKey
 import com.mapconductor.core.marker.MarkerTilingOptions
 import com.maptiler.maptilersdk.events.MTEvent
 import com.maptiler.maptilersdk.map.MTMapOptions
@@ -87,8 +88,21 @@ fun MapTilerMapView(
         val holder = remember(mtController) { MapTilerMapViewHolder(mtController) }
         val controller =
             remember(mtController) {
-                MapTilerMapViewController(holder, mtController).also { state.setController(it) }
+                MapTilerMapViewController(holder, mtController).also {
+                    state.setController(it)
+                    // レジストリの持ち主は state（react-sdk / ios-sdk と同じ）。
+                    // 登録は content の合成より前に済ませる必要がある — MarkerClusterGroup は
+                    // 未登録ならその場で return し、レジストリは Compose の state ではないので
+                    // 後から入れても再合成が走らない。
+                    state.serviceRegistry.put(MarkerRenderingSupportKey, it.markerRenderingSupport)
+                }
             }
+        // このプロバイダは MapViewBase を通らないので、登録の取り下げもここで行う。
+        // `clear()` ではなく `remove()` なのは他の capability を巻き添えにしないため。
+        DisposableEffect(state) {
+            onDispose { state.serviceRegistry.remove(MarkerRenderingSupportKey) }
+        }
+
         // markerTiling 指定ページ（多数マーカー）はマーカータイリング（ラスターレイヤ）経路で描画する。
         controller.useMarkerLayer = markerTiling != null
         controller.markerTilingOptions = markerTiling
@@ -219,7 +233,7 @@ fun MapTilerMapView(
         content?.let { overlay ->
             CompositionLocalProvider(
                 LocalMapOverlayRegistry provides registry,
-                LocalMapServiceRegistry provides controller.serviceRegistry,
+                LocalMapServiceRegistry provides state.serviceRegistry,
                 LocalMapViewController provides controller,
                 LocalMarkerCollector provides overlayScope.markerCollector,
                 LocalInfoBubbleCollector provides overlayScope.bubbleFlow,

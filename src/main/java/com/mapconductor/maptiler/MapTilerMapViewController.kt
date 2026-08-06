@@ -15,14 +15,12 @@ import com.mapconductor.core.map.MapCameraPosition
 import com.mapconductor.core.map.MapGesture
 import com.mapconductor.core.map.MapUISettings
 import com.mapconductor.core.map.MapUISettingsDiagnostics
-import com.mapconductor.core.map.MutableMapServiceRegistry
 import com.mapconductor.core.map.VisibleRegion
 import com.mapconductor.core.marker.MarkerCapableInterface
 import com.mapconductor.core.marker.MarkerEventControllerInterface
 import com.mapconductor.core.marker.MarkerOverlayRendererInterface
 import com.mapconductor.core.marker.MarkerRenderingStrategyInterface
 import com.mapconductor.core.marker.MarkerRenderingSupport
-import com.mapconductor.core.marker.MarkerRenderingSupportKey
 import com.mapconductor.core.marker.MarkerState
 import com.mapconductor.core.marker.MarkerTilingOptions
 import com.mapconductor.core.marker.OnMarkerEventHandler
@@ -183,13 +181,12 @@ class MapTilerMapViewController(
     // --- Marker clustering (android-marker-clustering) 連携 ---
 
     /**
-     * マーカークラスタリング等のプラグインが参照するサービスレジストリ。
-     * [MarkerRenderingSupport] を登録し、Composable 側で `LocalMapServiceRegistry` へ供給する。
+     * マーカークラスタリング等のプラグインが解決する capability。
+     *
+     * レジストリはこのコントローラではなく **state が持つ**（react-sdk / ios-sdk と同じ）。
+     * [MapTilerMapView] がコントローラ生成時に `state.serviceRegistry` へ登録する。
      */
-    val serviceRegistry: MutableMapServiceRegistry =
-        MutableMapServiceRegistry().apply {
-            put(MarkerRenderingSupportKey, createMarkerRenderingSupport())
-        }
+    val markerRenderingSupport: MarkerRenderingSupport<Any> = createMarkerRenderingSupport()
 
     /** 地図の準備完了状態。Composable が `ready` で true を設定し、クラスタリング開始の合図に用いる。 */
     val mapLoaded: MutableStateFlow<Boolean> = MutableStateFlow(false)
