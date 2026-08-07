@@ -5,7 +5,6 @@ import com.mapconductor.core.circle.CircleEvent
 import com.mapconductor.core.circle.CircleState
 import com.mapconductor.core.circle.OnCircleEventHandler
 import com.mapconductor.core.controller.BaseMapViewController
-import com.mapconductor.core.controller.OverlayControllerInterface
 import com.mapconductor.core.features.GeoPoint
 import com.mapconductor.core.features.GeoRectBounds
 import com.mapconductor.core.groundimage.GroundImageCapableInterface
@@ -43,7 +42,6 @@ import com.mapconductor.maptiler.raster.MapTilerRasterLayerOverlayRenderer
 import com.mapconductor.maptiler.zoom.ZoomAltitudeConverter
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.MTStyle
-import com.maptiler.maptilersdk.map.types.MTBounds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -134,8 +132,14 @@ class MapTilerMapViewController(
         super<BaseMapViewController>.setCameraRestriction(restriction)
         mainCoroutine.launch {
             runCatching {
+                // 解除は **null** を渡す。全球の MTBounds（緯度 ±90）を「制限なし」として
+                // 渡すと MapLibre GL JS が
+                // `Uncaught TypeError: Cannot read properties of null (reading '0')`
+                // を投げ、そこから先はブリッジの問い合わせが全部壊れる（project は x/y の
+                // 無い JSON を返し、地図も操作できなくなる）。実機 TB520FU で確認。
+                // MapTiler SDK 自身も解除には setMaxBounds(null) を使っている。
                 mtController.setMaxBounds(
-                    restriction?.bounds?.toMTBounds() ?: WORLD_BOUNDS,
+                    restriction?.bounds?.toMTBounds(),
                 )
                 mtController.setMinZoom(
                     restriction?.minZoom?.let { ZoomAltitudeConverter.googleZoomToMaptilerZoom(it) }
@@ -439,15 +443,6 @@ class MapTilerMapViewController(
         mtController.style = MTStyle(value.referenceStyle, value.variant)
     }
 
-    override fun getControllers(): Map<String, OverlayControllerInterface<*, *>> =
-        mapOf(
-            "raster_layer" to rasterLayerController,
-            "polyline" to polylineController,
-            "polygon" to polygonController,
-            "circle" to circleController,
-            "ground_image" to groundImageController,
-        )
-
     /**
      * 移動アニメーションを停止する（外部からの停止要求用の補助 API）。
      */
@@ -457,9 +452,6 @@ class MapTilerMapViewController(
     }
 
     companion object {
-        /** 制限解除時に渡す全世界の矩形。MapTiler には maxBounds のクリア API が無いため。 */
-        internal val WORLD_BOUNDS = MTBounds(west = -180.0, south = -90.0, east = 180.0, north = 90.0)
-
         /** MapTiler(MapLibre GL) の既定ズーム下限・上限。 */
         internal const val DEFAULT_MIN_ZOOM = 0.0
         internal const val DEFAULT_MAX_ZOOM = 22.0

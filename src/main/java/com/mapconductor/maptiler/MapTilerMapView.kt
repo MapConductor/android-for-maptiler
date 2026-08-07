@@ -109,15 +109,20 @@ fun MapTilerMapView(
 
         // This provider builds its view itself rather than going through
         // MapViewBase, so the shared gesture dispatch has to be wired here.
-        // Re-key on the loaded flag as well: gesture calls go over the JS bridge,
-        // which drops anything sent before the page is ready.
+        //
+        // 読み込み完了フラグを key にするだけでなく、**完了までは呼ばない**。
+        // これらは JS ブリッジ経由で `map` を触るので、ページ準備前に送ると
+        // WebView のコンソールに `Uncaught ReferenceError: map is not defined` が出る。
+        // 実害は今のところ無いが、地図が壊れたときの調査でノイズになる。
         val mapLoaded by controller.mapLoaded.collectAsState()
         LaunchedEffect(controller, state.uiSettings, mapLoaded) {
+            if (!mapLoaded) return@LaunchedEffect
             controller.applyUISettings(state.uiSettings)
         }
 
         // 範囲制限も JS ブリッジ経由なので、ページ読み込み完了フラグを key に含める。
         LaunchedEffect(controller, cameraRestriction, mapLoaded) {
+            if (!mapLoaded) return@LaunchedEffect
             controller.setCameraRestriction(cameraRestriction)
         }
 
@@ -174,17 +179,35 @@ fun MapTilerMapView(
                                 }
 
                             MTEvent.ON_MOVE_START ->
-                                emitCamera(coroutineScope, mtController, controller, cameraQueryInFlight, force = true) { pos ->
+                                emitCamera(
+                                    coroutineScope,
+                                    mtController,
+                                    controller,
+                                    cameraQueryInFlight,
+                                    force = true,
+                                ) { pos ->
                                     onMoveStart?.invoke(pos)
                                 }
 
                             MTEvent.ON_MOVE ->
-                                emitCamera(coroutineScope, mtController, controller, cameraQueryInFlight, force = false) { pos ->
+                                emitCamera(
+                                    coroutineScope,
+                                    mtController,
+                                    controller,
+                                    cameraQueryInFlight,
+                                    force = false,
+                                ) { pos ->
                                     onMove?.invoke(pos)
                                 }
 
                             MTEvent.ON_MOVE_END ->
-                                emitCamera(coroutineScope, mtController, controller, cameraQueryInFlight, force = true) { pos ->
+                                emitCamera(
+                                    coroutineScope,
+                                    mtController,
+                                    controller,
+                                    cameraQueryInFlight,
+                                    force = true,
+                                ) { pos ->
                                     currentState.updateCameraPosition(pos)
                                     coroutineScope.launch { controller.dispatchCameraToOverlays() }
                                     onMoveEnd?.invoke(pos)
@@ -203,7 +226,7 @@ fun MapTilerMapView(
         val bubbles by overlayScope.bubbleFlow.collectAsState()
 
         // 地図と、その上に重ねるコンポーズオーバーレイ（マーカー／InfoBubble）を同一 Box に配置する。
-        // MTCustomAnnotationView は自身を絶対ピクセル位置へ配置するため、MTMapView と同じ Box が必要。
+        // MapTilerProjectedAnnotation は自身を絶対ピクセル位置へ配置するため、MTMapView と同じ Box が必要。
         Box(modifier = modifier) {
             MTMapView(
                 referenceStyle = design.referenceStyle,
@@ -229,7 +252,7 @@ fun MapTilerMapView(
 
         // オーバーレイ content は他プロバイダと同じ CompositionLocal 群の下で評価する。
         // ラスターレイヤ・ポリラインは MapTiler のスタイルへ描画し、マーカー／InfoBubble は
-        // 上記の MTCustomAnnotationView オーバーレイとして描画される。
+        // 上記の MapTilerProjectedAnnotation オーバーレイとして描画される。
         content?.let { overlay ->
             CompositionLocalProvider(
                 LocalMapOverlayRegistry provides registry,

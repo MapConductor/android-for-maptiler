@@ -24,7 +24,6 @@ import com.mapconductor.core.marker.DefaultMarkerIcon
 import com.mapconductor.core.marker.MarkerAnimation
 import com.mapconductor.core.marker.MarkerState
 import com.mapconductor.settings.Settings
-import com.maptiler.maptilersdk.annotations.MTCustomAnnotationView
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.types.MTPoint
 import java.util.concurrent.atomic.AtomicBoolean
@@ -37,7 +36,7 @@ import kotlinx.coroutines.launch
 /**
  * マーカーを MapTiler 上のコンポーズオーバーレイとして描画する。
  *
- * [MTCustomAnnotationView] は地図の `ON_MOVE` / `ON_ZOOM` に追従して自動で再投影されるため、
+ * [MapTilerProjectedAnnotation] は地図の `ON_MOVE` / `ON_ZOOM` に追従して自動で再投影されるため、
  * 地図ドラッグ時にマーカーが正しく追従する。マーカードラッグ中は開始時のスクリーン座標に累積移動量を
  * 加えた点を unproject して [MarkerState.position] を随時更新するため、`onDrag` の購読側（例: ポリゴン
  * 頂点の追従）も正しく動作し、同じ座標に紐づく InfoBubble も追従する。
@@ -62,7 +61,7 @@ internal fun MapTilerMarkerOverlay(
     }
 
     // マーカードロップ/バウンス演出。他プロバイダの MarkerAnimationOverlayLayer と同様に、アイコンを
-    // 画面上方から所定位置へ落下させる。MapTiler はマーカーを MTCustomAnnotationView（非同期投影）で
+    // 画面上方から所定位置へ落下させる。MapTiler はマーカーを MapTilerProjectedAnnotation（非同期投影）で
     // 配置するため、その内容へ縦方向 translation を重ねてアニメーションさせる。演出は id ごとに一度だけ。
     // アニメーション指定がある間は最初のフレームで画面外へ退避し、着地位置がちらつくのを防ぐ。
     val dropTranslation =
@@ -113,7 +112,7 @@ internal fun MapTilerMarkerOverlay(
         marker.animate(null)
     }
 
-    MTCustomAnnotationView(
+    MapTilerProjectedAnnotation(
         controller = controller,
         coordinates = marker.position.toLngLat(),
         anchor = alignmentForAnchor(bitmapIcon.anchor),
@@ -231,7 +230,7 @@ internal fun MapTilerInfoBubbleOverlay(
             y = ((infoAnchor.y - iconAnchor.y) * iconSize.height / density).toDouble(),
         )
 
-    MTCustomAnnotationView(
+    MapTilerProjectedAnnotation(
         controller = controller,
         coordinates = position.toLngLat(),
         offset = mtOffset,
@@ -242,7 +241,7 @@ internal fun MapTilerInfoBubbleOverlay(
 }
 
 /**
- * anchor（0..1 の割合）を [MTCustomAnnotationView] の [Alignment] へ変換する。
+ * anchor（0..1 の割合）を [MapTilerProjectedAnnotation] の [Alignment] へ変換する。
  */
 private fun alignmentForAnchor(anchor: Offset): Alignment {
     val horizontal =
