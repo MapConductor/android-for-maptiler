@@ -25,7 +25,12 @@ class MapTilerViewState(
     mapDesignType: MapTilerMapDesignTypeInterface,
     override val id: String,
     initialCameraPosition: MapCameraPosition = MapCameraPosition.Default,
-) : MapViewState<MapTilerMapDesignTypeInterface>(initialCameraPosition),
+) : MapViewState<MapTilerMapDesignTypeInterface>(
+        initialCameraPosition = initialCameraPosition,
+        // WebView ブリッジ越しでカメライベントの往復が遅い。楽観更新しないと、
+        // moveCameraTo の直後に cameraPosition を読んだとき古い値が返る。
+        optimisticCameraUpdate = true,
+    ),
     MapTilerViewStateInterface {
     private var _mapDesignType by mutableStateOf(mapDesignType)
 
