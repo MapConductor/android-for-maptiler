@@ -2,7 +2,6 @@ package com.mapconductor.maptiler
 
 import com.mapconductor.core.circle.CircleCapableInterface
 import com.mapconductor.core.circle.CircleEvent
-import com.mapconductor.core.circle.CircleState
 import com.mapconductor.core.circle.OnCircleEventHandler
 import com.mapconductor.core.controller.BaseMapViewController
 import com.mapconductor.core.features.GeoPoint
@@ -21,7 +20,6 @@ import com.mapconductor.core.marker.OnMarkerEventHandler
 import com.mapconductor.core.polygon.OnPolygonEventHandler
 import com.mapconductor.core.polygon.PolygonCapableInterface
 import com.mapconductor.core.polygon.PolygonEvent
-import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polyline.OnPolylineEventHandler
 import com.mapconductor.core.polyline.PolylineCapableInterface
 import com.mapconductor.core.polyline.PolylineEvent
@@ -300,14 +298,6 @@ class MapTilerMapViewController(
 
     // --- PolylineCapableInterface ---
 
-    override suspend fun compositionPolylines(data: List<PolylineState>) {
-        polylineController.add(data)
-    }
-
-    override suspend fun updatePolyline(state: PolylineState) {
-        polylineController.update(state)
-    }
-
     @Deprecated("Use PolylineState.onClick instead.")
     override fun setOnPolylineClickListener(listener: OnPolylineEventHandler?) {
         polylineController.clickListener = listener
@@ -325,20 +315,10 @@ class MapTilerMapViewController(
 
     // --- PolygonCapableInterface ---
 
-    override suspend fun compositionPolygons(data: List<PolygonState>) {
-        polygonController.add(data)
-    }
-
-    override suspend fun updatePolygon(state: PolygonState) {
-        polygonController.update(state)
-    }
-
     @Deprecated("Use PolygonState.onClick instead.")
     override fun setOnPolygonClickListener(listener: OnPolygonEventHandler?) {
         polygonController.clickListener = listener
     }
-
-    override fun hasPolygon(state: PolygonState): Boolean = polygonController.polygonManager.getEntity(state.id) != null
 
     /**
      * 既知のポリゴンを再適用する（地図 `ready` 後の復元用）。
@@ -349,20 +329,10 @@ class MapTilerMapViewController(
 
     // --- CircleCapableInterface ---
 
-    override suspend fun compositionCircles(data: List<CircleState>) {
-        circleController.add(data)
-    }
-
-    override suspend fun updateCircle(state: CircleState) {
-        circleController.update(state)
-    }
-
     @Deprecated("Use CircleState.onClick instead.")
     override fun setOnCircleClickListener(listener: OnCircleEventHandler?) {
         circleController.clickListener = listener
     }
-
-    override fun hasCircle(state: CircleState): Boolean = circleController.circleManager.getEntity(state.id) != null
 
     /**
      * 既知の円を再適用する（地図 `ready` 後の復元用）。
@@ -372,14 +342,6 @@ class MapTilerMapViewController(
     }
 
     // --- GroundImageCapableInterface ---
-
-    override suspend fun compositionGroundImages(data: List<GroundImageState>) {
-        groundImageController.add(data)
-    }
-
-    override suspend fun updateGroundImage(state: GroundImageState) {
-        groundImageController.update(state)
-    }
 
     @Deprecated("Use GroundImageState.onClick instead.")
     override fun setOnGroundImageClickListener(listener: OnGroundImageEventHandler?) {
@@ -420,14 +382,6 @@ class MapTilerMapViewController(
     }
 
     // --- RasterLayerCapableInterface ---
-
-    override suspend fun compositionRasterLayers(data: List<RasterLayerState>) {
-        rasterLayerController.add(data)
-    }
-
-    override suspend fun updateRasterLayer(state: RasterLayerState) {
-        rasterLayerController.update(state)
-    }
 
     override fun hasRasterLayer(state: RasterLayerState): Boolean =
         rasterLayerController.rasterLayerManager.getEntity(state.id) != null

@@ -91,35 +91,22 @@ public final class com.mapconductor.maptiler.MapTilerMapViewController extends c
   public void setOnMarkerClickListener(kotlin.jvm.functions.Function1<? super com.mapconductor.core.marker.MarkerState, kotlin.Unit>);
   public java.lang.Object clearOverlays(kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public void destroy();
-  public java.lang.Object compositionPolylines(java.util.List<com.mapconductor.core.polyline.PolylineState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public java.lang.Object updatePolyline(com.mapconductor.core.polyline.PolylineState, kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public void setOnPolylineClickListener(kotlin.jvm.functions.Function1<? super com.mapconductor.core.polyline.PolylineEvent, kotlin.Unit>);
   public boolean hasPolyline(com.mapconductor.core.polyline.PolylineState);
   public final void reapplyPolylines();
-  public java.lang.Object compositionPolygons(java.util.List<com.mapconductor.core.polygon.PolygonState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public java.lang.Object updatePolygon(com.mapconductor.core.polygon.PolygonState, kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public void setOnPolygonClickListener(kotlin.jvm.functions.Function1<? super com.mapconductor.core.polygon.PolygonEvent, kotlin.Unit>);
-  public boolean hasPolygon(com.mapconductor.core.polygon.PolygonState);
   public final void reapplyPolygons();
-  public java.lang.Object compositionCircles(java.util.List<com.mapconductor.core.circle.CircleState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public java.lang.Object updateCircle(com.mapconductor.core.circle.CircleState, kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public void setOnCircleClickListener(kotlin.jvm.functions.Function1<? super com.mapconductor.core.circle.CircleEvent, kotlin.Unit>);
-  public boolean hasCircle(com.mapconductor.core.circle.CircleState);
   public final void reapplyCircles();
-  public java.lang.Object compositionGroundImages(java.util.List<com.mapconductor.core.groundimage.GroundImageState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public java.lang.Object updateGroundImage(com.mapconductor.core.groundimage.GroundImageState, kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public void setOnGroundImageClickListener(kotlin.jvm.functions.Function1<? super com.mapconductor.core.groundimage.GroundImageEvent, kotlin.Unit>);
   public boolean hasGroundImage(com.mapconductor.core.groundimage.GroundImageState);
   public final void reapplyGroundImages();
   public final java.lang.Object handleTap(com.mapconductor.core.features.GeoPoint, kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public final java.lang.Object dispatchCameraToOverlays(kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public java.lang.Object compositionRasterLayers(java.util.List<com.mapconductor.core.raster.RasterLayerState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public java.lang.Object updateRasterLayer(com.mapconductor.core.raster.RasterLayerState, kotlin.coroutines.Continuation<? super kotlin.Unit>);
   public boolean hasRasterLayer(com.mapconductor.core.raster.RasterLayerState);
   public final void reapplyRasterLayers();
   public void setMapDesignType(com.mapconductor.maptiler.MapTilerMapDesignTypeInterface);
   public final void stop();
-  public void setMarkerAnimationOverlayHost(com.mapconductor.core.marker.MarkerAnimationOverlayHost);
   public com.mapconductor.core.map.MapViewHolderInterface getHolder();
 }
 public final class com.mapconductor.maptiler.MapTilerMapViewController$Companion {
