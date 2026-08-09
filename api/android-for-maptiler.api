@@ -181,14 +181,10 @@ public final class com.mapconductor.maptiler.MapTilerViewState extends com.mapco
   public com.mapconductor.maptiler.MapTilerViewState(com.mapconductor.maptiler.MapTilerMapDesignTypeInterface, java.lang.String, com.mapconductor.core.map.MapCameraPosition);
   public com.mapconductor.maptiler.MapTilerViewState(com.mapconductor.maptiler.MapTilerMapDesignTypeInterface, java.lang.String, com.mapconductor.core.map.MapCameraPosition, int, kotlin.jvm.internal.DefaultConstructorMarker);
   public java.lang.String getId();
-  public com.mapconductor.core.map.MapCameraPosition getCameraPosition();
   public com.mapconductor.maptiler.MapTilerMapDesignTypeInterface getMapDesignType();
   public void setMapDesignType(com.mapconductor.maptiler.MapTilerMapDesignTypeInterface);
   public final void setController(com.mapconductor.maptiler.MapTilerMapViewController);
   public final void updateCameraPosition(com.mapconductor.core.map.MapCameraPosition);
-  public void moveCameraTo(com.mapconductor.core.map.MapCameraPosition, java.lang.Long);
-  public void moveCameraTo(com.mapconductor.core.features.GeoPoint, java.lang.Long);
-  public void fitBounds(com.mapconductor.core.features.GeoRectBounds, int);
   public com.mapconductor.maptiler.MapTilerMapViewHolder getMapViewHolder();
   public java.lang.Object getMapDesignType();
   public void setMapDesignType(java.lang.Object);

@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.mapconductor.compose.map.BaseMapViewSaver
-import com.mapconductor.core.features.GeoPoint
 import com.mapconductor.core.map.MapCameraPosition
 import com.mapconductor.core.map.MapCameraPositionInterface
 import com.mapconductor.core.map.MapViewState
@@ -26,15 +25,11 @@ class MapTilerViewState(
     mapDesignType: MapTilerMapDesignTypeInterface,
     override val id: String,
     initialCameraPosition: MapCameraPosition = MapCameraPosition.Default,
-) : MapViewState<MapTilerMapDesignTypeInterface>(),
+) : MapViewState<MapTilerMapDesignTypeInterface>(initialCameraPosition),
     MapTilerViewStateInterface {
-    private var _cameraPosition by mutableStateOf(initialCameraPosition)
     private var _mapDesignType by mutableStateOf(mapDesignType)
 
     private var controller: MapTilerMapViewController? = null
-
-    override val cameraPosition: MapCameraPosition
-        get() = _cameraPosition
 
     override var mapDesignType: MapTilerMapDesignTypeInterface
         get() = _mapDesignType
@@ -46,41 +41,17 @@ class MapTilerViewState(
     /** MapView 生成時にコントローラを紐付ける。 */
     fun setController(controller: MapTilerMapViewController) {
         this.controller = controller
+        // 初期カメラは MTMapOptions で地図生成時に渡しているので、接続時には移動しない。
+        attachController(controller, moveToInitialCamera = false)
     }
 
     /** 現在のカメラ位置を更新する（地図移動イベントからの反映用）。 */
     fun updateCameraPosition(position: MapCameraPosition) {
-        _cameraPosition = position
+        setCameraPositionInternal(position)
     }
 
-    override fun moveCameraTo(
-        cameraPosition: MapCameraPosition,
-        durationMillis: Long?,
-    ) {
-        _cameraPosition = cameraPosition
-        val ctrl = controller ?: return
-        if ((durationMillis ?: 0) > 0) {
-            ctrl.animateCamera(cameraPosition, durationMillis!!)
-        } else {
-            ctrl.moveCamera(cameraPosition)
-        }
-    }
-
-    override fun moveCameraTo(
-        position: GeoPoint,
-        durationMillis: Long?,
-    ) {
-        moveCameraTo(_cameraPosition.copy(position = position), durationMillis)
-    }
-
-    override fun fitBounds(
-        bounds: com.mapconductor.core.features.GeoRectBounds,
-        padding: Int,
-    ) {
-        controller?.fitBounds(bounds, padding)
-    }
-
-    override fun getMapViewHolder(): MapTilerMapViewHolder? = controller?.holder as? MapTilerMapViewHolder
+    /** 戻り型をこのプロバイダのホルダーへ絞る（アプリが `?.map` を取れる形を保つため）。 */
+    override fun getMapViewHolder(): MapTilerMapViewHolder? = super.getMapViewHolder() as? MapTilerMapViewHolder
 }
 
 /**
