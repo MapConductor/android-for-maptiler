@@ -427,13 +427,11 @@ public final class com.mapconductor.maptiler.raster.MapTilerRasterLayerOverlayRe
 }
 final class com.mapconductor.maptiler.raster.MapTilerRasterLayerOverlayRenderer$Companion {
 }
-public final class com.mapconductor.maptiler.zoom.ZoomAltitudeConverter extends com.mapconductor.core.zoom.AbstractZoomAltitudeConverter {
+public final class com.mapconductor.maptiler.zoom.ZoomAltitudeConverter extends com.mapconductor.core.zoom.WebMercatorZoomAltitudeConverter {
   public static final com.mapconductor.maptiler.zoom.ZoomAltitudeConverter$Companion Companion;
   public static final double MAPTILER_TO_GOOGLE_ZOOM_OFFSET;
   public com.mapconductor.maptiler.zoom.ZoomAltitudeConverter(double);
   public com.mapconductor.maptiler.zoom.ZoomAltitudeConverter(double, int, kotlin.jvm.internal.DefaultConstructorMarker);
-  public double zoomLevelToAltitude(double, double, double);
-  public double altitudeToZoomLevel(double, double, double);
   public com.mapconductor.maptiler.zoom.ZoomAltitudeConverter();
 }
 public final class com.mapconductor.maptiler.zoom.ZoomAltitudeConverter$Companion {

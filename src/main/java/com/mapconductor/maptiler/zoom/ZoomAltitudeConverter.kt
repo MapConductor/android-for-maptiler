@@ -1,25 +1,21 @@
 package com.mapconductor.maptiler.zoom
 
-import com.mapconductor.core.zoom.AbstractZoomAltitudeConverter
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.log2
-import kotlin.math.max
-import kotlin.math.pow
+import com.mapconductor.core.zoom.WebMercatorZoomAltitudeConverter
 
 /**
- * MapTiler SDK は MapLibre GL JS ベース（512px タイル / web mercator）のため、Google Maps
- * （256px タイル）とはズームが約 1.0 ずれる（`GoogleZoom ≈ MapTilerZoom + 1.0`）。
- * ズーム換算は [MapTilerMapViewController] の `coreZoomToMapTiler` / `mapTilerZoomToCore` と同一。
+ * 統一ズーム（Google Maps 基準・256px タイル）⇄ 高度の変換。
  *
- * このクラスは tilt < 0 の擬似表現に必要な高度（altitude）計算のために追加した。
- * ロジックは MapLibre 実装（android-for-maplibre の zoom.ZoomAltitudeConverter）と同一。
+ * MapTiler は 512px タイルのベクタエンジンなので、統一ズームはネイティブズーム + 1。
+ * 換算式はコアの [WebMercatorZoomAltitudeConverter] にある。
  */
 class ZoomAltitudeConverter(
     zoom0Altitude: Double = DEFAULT_ZOOM0_ALTITUDE,
-) : AbstractZoomAltitudeConverter(zoom0Altitude) {
+) : WebMercatorZoomAltitudeConverter(zoom0Altitude, zoomOffset = MAPTILER_TO_GOOGLE_ZOOM_OFFSET) {
     companion object {
-        /** `GoogleZoom ≈ MapTilerZoom + 1.0`（MapLibre 実装と同一値）。 */
+        /**
+         * 実測のオフセット:
+         * GoogleZoom ≈ MapTilerSDK.zoom + 1.0
+         */
         const val MAPTILER_TO_GOOGLE_ZOOM_OFFSET = 1.0
 
         fun maptilerZoomToGoogleZoom(maptilerZoom: Double): Double =
@@ -27,43 +23,5 @@ class ZoomAltitudeConverter(
 
         fun googleZoomToMaptilerZoom(googleZoom: Double): Double =
             (googleZoom - MAPTILER_TO_GOOGLE_ZOOM_OFFSET).coerceIn(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL)
-    }
-
-    private fun cosLatitudeFactor(latitudeDeg: Double): Double {
-        val clampedLat = latitudeDeg.coerceIn(-85.0, 85.0)
-        val latRad = Math.toRadians(clampedLat)
-        return max(MIN_COS_LAT, abs(cos(latRad)))
-    }
-
-    private fun cosTiltFactor(tiltDeg: Double): Double {
-        val clampedTilt = tiltDeg.coerceIn(0.0, 90.0)
-        val tiltRad = Math.toRadians(clampedTilt)
-        return max(MIN_COS_TILT, cos(tiltRad))
-    }
-
-    override fun zoomLevelToAltitude(
-        zoomLevel: Double,
-        latitude: Double,
-        tilt: Double,
-    ): Double {
-        val googleZoom = maptilerZoomToGoogleZoom(zoomLevel)
-        val cosLat = cosLatitudeFactor(latitude)
-        val cosTilt = cosTiltFactor(tilt)
-        val distance = (zoom0Altitude * cosLat) / ZOOM_FACTOR.pow(googleZoom)
-        val altitude = distance * cosTilt
-        return altitude.coerceIn(MIN_ALTITUDE, MAX_ALTITUDE)
-    }
-
-    override fun altitudeToZoomLevel(
-        altitude: Double,
-        latitude: Double,
-        tilt: Double,
-    ): Double {
-        val clampedAltitude = altitude.coerceIn(MIN_ALTITUDE, MAX_ALTITUDE)
-        val cosLat = cosLatitudeFactor(latitude)
-        val cosTilt = cosTiltFactor(tilt)
-        val distance = clampedAltitude / cosTilt
-        val googleZoom = log2((zoom0Altitude * cosLat) / distance)
-        return googleZoomToMaptilerZoom(googleZoom)
     }
 }
