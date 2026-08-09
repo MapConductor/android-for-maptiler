@@ -15,6 +15,14 @@ ktlint {
     }
 }
 
+// ドライバー実装点（@InternalMapConductorApi）を使うためのオプトイン。
+// android-for-* は地図SDKドライバーなので、モジュール単位で許可する。
+kotlin {
+    compilerOptions {
+        optIn.add("com.mapconductor.core.InternalMapConductorApi")
+    }
+}
+
 android {
     namespace = "com.mapconductor.maptiler"
     compileSdk = project.property("compileSdk").toString().toInt()

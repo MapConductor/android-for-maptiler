@@ -170,11 +170,18 @@ fun MapTilerMapView(
                         when (event) {
                             MTEvent.ON_TAP ->
                                 data?.coordinate?.toGeoPoint()?.let { point ->
-                                    onClick?.invoke(point)
                                     coroutineScope.launch {
-                                        controller.handleTap(point)
-                                        // シンボルレイヤ・マーカーのヒットテスト（現在ズームで換算）。
-                                        runCatching { controller.handleMarkerTap(point, mtController.getZoom()) }
+                                        // marker → circle → groundImage → polyline → polygon → map の
+                                        // カスケード。**必ずどれか 1 つだけ**が配送される（他プロバイダと同じ）。
+                                        // 順序と先勝ちはコアの dispatchOverlayTap が持つ。マーカーだけは
+                                        // MapTiler のタイルレンダラでヒットテストするのでここで先に見る。
+                                        val markerHit =
+                                            runCatching {
+                                                controller.handleMarkerTap(point, mtController.getZoom())
+                                            }.getOrDefault(false)
+                                        if (!markerHit && !controller.dispatchOverlayTap(point)) {
+                                            onClick?.invoke(point)
+                                        }
                                     }
                                 }
 

@@ -1,7 +1,6 @@
 package com.mapconductor.maptiler
 
 import com.mapconductor.core.circle.CircleCapableInterface
-import com.mapconductor.core.circle.CircleEvent
 import com.mapconductor.core.circle.OnCircleEventHandler
 import com.mapconductor.core.controller.BaseMapViewController
 import com.mapconductor.core.features.GeoPoint
@@ -19,10 +18,8 @@ import com.mapconductor.core.marker.MarkerTilingOptions
 import com.mapconductor.core.marker.OnMarkerEventHandler
 import com.mapconductor.core.polygon.OnPolygonEventHandler
 import com.mapconductor.core.polygon.PolygonCapableInterface
-import com.mapconductor.core.polygon.PolygonEvent
 import com.mapconductor.core.polyline.OnPolylineEventHandler
 import com.mapconductor.core.polyline.PolylineCapableInterface
-import com.mapconductor.core.polyline.PolylineEvent
 import com.mapconductor.core.polyline.PolylineState
 import com.mapconductor.core.raster.RasterLayerCapableInterface
 import com.mapconductor.core.raster.RasterLayerState
@@ -359,18 +356,19 @@ class MapTilerMapViewController(
     }
 
     /**
-     * 地図タップ時のヒットテスト。ポリライン上・ポリゴン内・円内のタップを onClick へ配送する。
+     * 地図タップ時のヒットテスト。
+     *
+     * 公開済みの入口なので残してあるが、中身はコア共通のカスケード
+     * （[dispatchOverlayTap]）に置き換わっている。以前はポリライン・ポリゴン・円の
+     * **すべて**に配送していたが、いまは他プロバイダと同じく先に当たった 1 つだけ。
      */
+    @Deprecated(
+        "オーバーレイのタップ配送はコアが行う。",
+        ReplaceWith("dispatchOverlayTap(point)"),
+    )
+    @Suppress("UNUSED_PARAMETER")
     suspend fun handleTap(point: GeoPoint) {
-        polylineController.findWithClosestPoint(point)?.let { hit ->
-            polylineController.dispatchClick(PolylineEvent(hit.entity.state, hit.closestPoint))
-        }
-        polygonController.find(point)?.let { entity ->
-            polygonController.dispatchClick(PolygonEvent(entity.state, point))
-        }
-        circleController.find(point)?.let { entity ->
-            circleController.dispatchClick(CircleEvent(entity.state, point))
-        }
+        dispatchOverlayTap(point)
     }
 
     /**

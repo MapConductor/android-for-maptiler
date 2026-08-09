@@ -130,7 +130,7 @@ public final class com.mapconductor.maptiler.MapTilerMapViewControllerInterface$
 public final class com.mapconductor.maptiler.MapTilerMapViewControllerMarkerTilesKt {
   public static final com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer tileRenderer(com.mapconductor.maptiler.MapTilerMapViewController);
   public static final java.lang.Object renderTiledMarkers(com.mapconductor.maptiler.MapTilerMapViewController, java.util.List<com.mapconductor.core.marker.MarkerState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public static final void handleMarkerTap(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.features.GeoPoint, double);
+  public static final boolean handleMarkerTap(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.features.GeoPoint, double);
   public static final com.mapconductor.core.marker.MarkerRenderingSupport<java.lang.Object> createMarkerRenderingSupport(com.mapconductor.maptiler.MapTilerMapViewController);
 }
 public final class com.mapconductor.maptiler.MapTilerMapViewHolder implements com.mapconductor.core.map.MapViewHolderInterface<com.maptiler.maptilersdk.map.MTMapViewController, com.maptiler.maptilersdk.map.MTMapViewController> {
