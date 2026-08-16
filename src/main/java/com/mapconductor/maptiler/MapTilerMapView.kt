@@ -15,7 +15,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import com.mapconductor.compose.CollectAndRenderOverlays
 import com.mapconductor.compose.MapViewScope
 import com.mapconductor.compose.circle.LocalCircleCollector
@@ -67,10 +69,53 @@ fun MapTilerMapView(
     cameraRestriction: CameraRestriction? = null,
     onMapLoaded: OnMapLoadedHandler? = null,
     onMapClick: OnMapEventHandler? = null,
+    onMapLongClick: OnMapEventHandler? = null,
+    onCameraMoveStart: OnCameraMoveHandler? = null,
+    onCameraMove: OnCameraMoveHandler? = null,
+    onCameraMoveEnd: OnCameraMoveHandler? = null,
+    content: (@Composable MapViewScope.() -> Unit)? = null,
+) {
+    MapTilerMapSurface(
+        state = state,
+        modifier = modifier,
+        markerTiling = markerTiling,
+        cameraRestriction = cameraRestriction,
+        onMapLoaded = onMapLoaded,
+        onMapClick = onMapClick,
+        onMapLongClick = onMapLongClick,
+        onCameraMoveStart = onCameraMoveStart,
+        onCameraMove = onCameraMove,
+        onCameraMoveEnd = onCameraMoveEnd,
+        content = content,
+    )
+}
+
+/**
+ * 地図と Compose オーバーレイの本体。
+ *
+ * MapTiler は**マーカーと InfoBubble を地図SDKではなく Compose で描く**
+ * （WebView 越しの `project` で得た画素位置に [MapTilerProjectedAnnotation] として重ねる）。
+ * そのため Compose を通さないホスト（React Native）でもこの層は必要になる。
+ * [MapTilerMapView] と `reactnative-for-maptiler` の両方から使う。
+ * android-for-longdo の `LongdoMapSurface` と同じ扱い。
+ *
+ * @param onControllerReady コントローラができた時点で 1 回だけ呼ばれる。
+ *   RN のホストはこれを受けて共通基底へ渡す。マーカーは共通基底 →
+ *   `controller.compositionMarkers()` → `controller.markers` と流れ、このオーバーレイが描く。
+ */
+@Composable
+fun MapTilerMapSurface(
+    state: MapTilerViewState,
+    modifier: Modifier = Modifier,
+    markerTiling: MarkerTilingOptions? = null,
+    cameraRestriction: CameraRestriction? = null,
+    onMapLoaded: OnMapLoadedHandler? = null,
+    onMapClick: OnMapEventHandler? = null,
     @Suppress("UNUSED_PARAMETER") onMapLongClick: OnMapEventHandler? = null,
     onCameraMoveStart: OnCameraMoveHandler? = null,
     onCameraMove: OnCameraMoveHandler? = null,
     onCameraMoveEnd: OnCameraMoveHandler? = null,
+    onControllerReady: ((MapTilerMapViewController) -> Unit)? = null,
     content: (@Composable MapViewScope.() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -95,6 +140,9 @@ fun MapTilerMapView(
                     // 未登録ならその場で return し、レジストリは Compose の state ではないので
                     // 後から入れても再合成が走らない。
                     state.serviceRegistry.put(MarkerRenderingSupportKey, it.markerRenderingSupport)
+                    // RN のホストはここでコントローラを受け取り、共通基底へ渡す。
+                    // `remember` の中なのでスタイル切替でコントローラを作り直したときだけ鳴る。
+                    onControllerReady?.invoke(it)
                 }
             }
         // このプロバイダは MapViewBase を通らないので、登録の取り下げもここで行う。
@@ -103,9 +151,10 @@ fun MapTilerMapView(
             onDispose { state.serviceRegistry.remove(MarkerRenderingSupportKey) }
         }
 
-        // markerTiling 指定ページ（多数マーカー）はマーカータイリング（ラスターレイヤ）経路で描画する。
-        controller.useMarkerLayer = markerTiling != null
-        controller.markerTilingOptions = markerTiling
+        // 設定を渡すだけ。**タイル経路に倒すかはコントローラが件数を見て決める**
+        // （`shouldUseMarkerLayer`）。ここで `useMarkerLayer = markerTiling != null` と
+        // 書くと、しきい値未満の件数でもタイル経路に落ちてマーカーが 1 つも描かれない。
+        controller.markerTilingOptions = markerTiling ?: MarkerTilingOptions.Default
 
         // This provider builds its view itself rather than going through
         // MapViewBase, so the shared gesture dispatch has to be wired here.
@@ -170,11 +219,18 @@ fun MapTilerMapView(
                         when (event) {
                             MTEvent.ON_TAP ->
                                 data?.coordinate?.toGeoPoint()?.let { point ->
-                                    onClick?.invoke(point)
                                     coroutineScope.launch {
-                                        controller.handleTap(point)
-                                        // シンボルレイヤ・マーカーのヒットテスト（現在ズームで換算）。
-                                        runCatching { controller.handleMarkerTap(point, mtController.getZoom()) }
+                                        // marker → circle → groundImage → polyline → polygon → map の
+                                        // カスケード。**必ずどれか 1 つだけ**が配送される（他プロバイダと同じ）。
+                                        // 順序と先勝ちはコアの dispatchOverlayTap が持つ。マーカーだけは
+                                        // MapTiler のタイルレンダラでヒットテストするのでここで先に見る。
+                                        val markerHit =
+                                            runCatching {
+                                                controller.handleMarkerTap(point, mtController.getZoom())
+                                            }.getOrDefault(false)
+                                        if (!markerHit && !controller.dispatchOverlayTap(point)) {
+                                            onClick?.invoke(point)
+                                        }
                                     }
                                 }
 
@@ -225,9 +281,20 @@ fun MapTilerMapView(
         val markers by controller.markers.collectAsState()
         val bubbles by overlayScope.bubbleFlow.collectAsState()
 
+        // ホルダーの同期投影が使うビューの大きさ（端末ピクセル）。SDK 側の
+        // `mapContainerWidthPx` は internal で外から読めないので、ここで測って渡す。
+        // これが埋まらないと toScreenOffset は null のままで、RN の InfoBubble が出ない。
+        var viewportSize by remember(mtController) { mutableStateOf<IntSize?>(null) }
+        DisposableEffect(holder) {
+            holder.viewportSizeProvider = { viewportSize }
+            onDispose { holder.viewportSizeProvider = null }
+        }
+
         // 地図と、その上に重ねるコンポーズオーバーレイ（マーカー／InfoBubble）を同一 Box に配置する。
         // MapTilerProjectedAnnotation は自身を絶対ピクセル位置へ配置するため、MTMapView と同じ Box が必要。
-        Box(modifier = modifier) {
+        Box(
+            modifier = modifier.onGloballyPositioned { coords -> viewportSize = coords.size },
+        ) {
             MTMapView(
                 referenceStyle = design.referenceStyle,
                 options = options,
@@ -349,7 +416,11 @@ private fun emitCamera(
                     tilt = pitch,
                 )
             // tilt < 0 の擬似表現時は、正ピッチ・前進ターゲットの生状態から論理的な負tilt・元位置へ復元する。
-            emit(logicalController.recoverLogicalCameraPosition(cameraPosition))
+            val logical = logicalController.recoverLogicalCameraPosition(cameraPosition)
+            // ホルダーの同期投影の入力。move-end だけでなく毎回入れる（間引くと
+            // ドラッグ中に InfoBubble とマーカーが地図から遅れて付いてくる）。
+            logicalController.setLatestOverlayCamera(logical)
+            emit(logical)
         } catch (_: Throwable) {
             // 地図が未初期化などでブリッジ取得に失敗した場合は無視する。
         } finally {

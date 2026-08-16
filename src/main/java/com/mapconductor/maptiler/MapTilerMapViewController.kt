@@ -1,8 +1,6 @@
 package com.mapconductor.maptiler
 
 import com.mapconductor.core.circle.CircleCapableInterface
-import com.mapconductor.core.circle.CircleEvent
-import com.mapconductor.core.circle.CircleState
 import com.mapconductor.core.circle.OnCircleEventHandler
 import com.mapconductor.core.controller.BaseMapViewController
 import com.mapconductor.core.features.GeoPoint
@@ -20,11 +18,8 @@ import com.mapconductor.core.marker.MarkerTilingOptions
 import com.mapconductor.core.marker.OnMarkerEventHandler
 import com.mapconductor.core.polygon.OnPolygonEventHandler
 import com.mapconductor.core.polygon.PolygonCapableInterface
-import com.mapconductor.core.polygon.PolygonEvent
-import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polyline.OnPolylineEventHandler
 import com.mapconductor.core.polyline.PolylineCapableInterface
-import com.mapconductor.core.polyline.PolylineEvent
 import com.mapconductor.core.polyline.PolylineState
 import com.mapconductor.core.raster.RasterLayerCapableInterface
 import com.mapconductor.core.raster.RasterLayerState
@@ -93,16 +88,35 @@ class MapTilerMapViewController(
      */
     internal var lastLogicalCameraPosition: MapCameraPosition? = null
 
-    /**
-     * markerTiling（多数マーカー）ページで用いるタイリング設定。[useMarkerLayer] と併せて設定する。
-     */
+    /** マーカータイリング設定。null は [MarkerTilingOptions.Default] と同じ。 */
     var markerTilingOptions: MarkerTilingOptions? = null
 
     /**
      * true のとき、マーカーをマーカータイリング（ラスターレイヤ）で描画する。
      * false（既定）では少数の対話的マーカーをコンポーズオーバーレイ（[markers] フロー）として描画する。
+     *
+     * **直接触らないこと。** 切り替えは [shouldUseMarkerLayer] が件数を見て決める。
+     * このプロパティは互換のために残してある（外から true にすると常にタイル経路になる）。
      */
     var useMarkerLayer: Boolean = false
+
+    /**
+     * マーカータイル経路を使うか。
+     *
+     * **他プロバイダと同じ規則にすること。** `MapLibreMarkerController` 等は
+     * `markerTiling.enabled && data.size >= minMarkerCount` で切り替える。
+     * 以前ここだけ「`markerTiling` が null でないか」で判定しており、
+     * タイリングを指定していないページでもタイル経路に倒れて、件数がしきい値未満だと
+     * **マーカーが 1 つも描かれない**状態になっていた。
+     * Compose では各ページが null を渡すので露見しなかったが、React Native の共通基底は
+     * 常に非 null の [MarkerTilingOptions] を渡すため、RN で全マーカーが消えた。
+     * android-for-longdo が先に踏んだのと同じ穴。
+     */
+    private fun shouldUseMarkerLayer(count: Int): Boolean {
+        if (useMarkerLayer) return true
+        val options = markerTilingOptions ?: MarkerTilingOptions.Default
+        return options.enabled && count >= options.minMarkerCount
+    }
 
     // --- MarkerCapableInterface ---
 
@@ -166,28 +180,31 @@ class MapTilerMapViewController(
     }
 
     override suspend fun compositionMarkers(data: List<MarkerState>) {
-        if (useMarkerLayer) {
+        if (shouldUseMarkerLayer(data.size)) {
             renderTiledMarkers(data)
+            // タイル経路へ倒したらオーバーレイ側は空にする。両方に残すと二重に描かれる。
+            _markers.value = emptyList()
         } else {
+            // 逆向きも同じ。件数がしきい値を割ったらタイルを畳んでからオーバーレイへ戻す。
+            markerRasterId?.let { rasterLayerController.removeById(it) }
+            markerRasterId = null
+            markerTileRenderer?.clear()
             _markers.value = data
         }
     }
 
     override suspend fun updateMarker(state: MarkerState) {
-        if (useMarkerLayer) {
-            val current = markerTileRenderer?.markers ?: return
-            renderTiledMarkers(current.map { if (it.id == state.id) state else it })
+        val tiled = markerTileRenderer?.markers
+        if (tiled != null && markerRasterId != null) {
+            renderTiledMarkers(tiled.map { if (it.id == state.id) state else it })
         } else {
             _markers.value = _markers.value.map { if (it.id == state.id) state else it }
         }
     }
 
     override fun hasMarker(state: MarkerState): Boolean =
-        if (useMarkerLayer) {
-            markerTileRenderer?.markers?.any { it.id == state.id } ?: false
-        } else {
-            _markers.value.any { it.id == state.id }
-        }
+        _markers.value.any { it.id == state.id } ||
+            (markerTileRenderer?.markers?.any { it.id == state.id } ?: false)
 
     // --- Marker clustering (android-marker-clustering) 連携 ---
 
@@ -203,12 +220,33 @@ class MapTilerMapViewController(
     val mapLoaded: MutableStateFlow<Boolean> = MutableStateFlow(false)
 
     /**
+     * 直近のカメラ。オーバーレイへの通知と、ホルダーの同期投影の入力を兼ねる。
+     * [MapTilerMapSurface] のカメライベントから [setLatestOverlayCamera] で更新される。
+     */
+    internal var latestOverlayCamera: MapCameraPosition? = null
+
+    /**
+     * 直近のカメラを記録する。[MapTilerMapSurface] のカメライベントから呼ばれる。
+     *
+     * move-end だけでなく **move のたびに** 呼ぶこと。これがホルダーの
+     * [MapTilerMapViewHolder.toScreenOffset] の入力になるので、更新を間引くと
+     * ドラッグ中に InfoBubble とマーカーが地図から遅れて付いてくる。
+     */
+    fun setLatestOverlayCamera(camera: MapCameraPosition) {
+        latestOverlayCamera = camera
+    }
+
+    /**
      * 現在のカメラをオーバーレイコントローラ（クラスタ用 StrategyMarkerController 等）へ初期通知する。
      * これにより初期表示時のクラスタが算出される。
      */
     fun dispatchInitialCameraToOverlays() {
         mainCoroutine.launch {
-            runCatching { notifyMapCameraPosition(currentCameraWithRegion()) }
+            runCatching {
+                val camera = currentCameraWithRegion()
+                latestOverlayCamera = camera
+                notifyMapCameraPosition(camera)
+            }
         }
     }
 
@@ -278,6 +316,10 @@ class MapTilerMapViewController(
         registerOverlayController(polygonController)
         registerOverlayController(circleController)
         registerOverlayController(groundImageController)
+        // ホルダーの同期投影にカメラを供給する。ホルダーはコントローラより先に作られるので
+        // ここで繋ぐ。これが無いと toScreenOffset が常に null を返し、InfoBubble と
+        // マーカー追従が理由も出ずに落ちる（android-for-longdo と同じ）。
+        holder.cameraProvider = { latestOverlayCamera }
     }
 
     override suspend fun clearOverlays() {
@@ -300,14 +342,6 @@ class MapTilerMapViewController(
 
     // --- PolylineCapableInterface ---
 
-    override suspend fun compositionPolylines(data: List<PolylineState>) {
-        polylineController.add(data)
-    }
-
-    override suspend fun updatePolyline(state: PolylineState) {
-        polylineController.update(state)
-    }
-
     @Deprecated("Use PolylineState.onClick instead.")
     override fun setOnPolylineClickListener(listener: OnPolylineEventHandler?) {
         polylineController.clickListener = listener
@@ -325,20 +359,10 @@ class MapTilerMapViewController(
 
     // --- PolygonCapableInterface ---
 
-    override suspend fun compositionPolygons(data: List<PolygonState>) {
-        polygonController.add(data)
-    }
-
-    override suspend fun updatePolygon(state: PolygonState) {
-        polygonController.update(state)
-    }
-
     @Deprecated("Use PolygonState.onClick instead.")
     override fun setOnPolygonClickListener(listener: OnPolygonEventHandler?) {
         polygonController.clickListener = listener
     }
-
-    override fun hasPolygon(state: PolygonState): Boolean = polygonController.polygonManager.getEntity(state.id) != null
 
     /**
      * 既知のポリゴンを再適用する（地図 `ready` 後の復元用）。
@@ -349,20 +373,10 @@ class MapTilerMapViewController(
 
     // --- CircleCapableInterface ---
 
-    override suspend fun compositionCircles(data: List<CircleState>) {
-        circleController.add(data)
-    }
-
-    override suspend fun updateCircle(state: CircleState) {
-        circleController.update(state)
-    }
-
     @Deprecated("Use CircleState.onClick instead.")
     override fun setOnCircleClickListener(listener: OnCircleEventHandler?) {
         circleController.clickListener = listener
     }
-
-    override fun hasCircle(state: CircleState): Boolean = circleController.circleManager.getEntity(state.id) != null
 
     /**
      * 既知の円を再適用する（地図 `ready` 後の復元用）。
@@ -372,14 +386,6 @@ class MapTilerMapViewController(
     }
 
     // --- GroundImageCapableInterface ---
-
-    override suspend fun compositionGroundImages(data: List<GroundImageState>) {
-        groundImageController.add(data)
-    }
-
-    override suspend fun updateGroundImage(state: GroundImageState) {
-        groundImageController.update(state)
-    }
 
     @Deprecated("Use GroundImageState.onClick instead.")
     override fun setOnGroundImageClickListener(listener: OnGroundImageEventHandler?) {
@@ -397,18 +403,19 @@ class MapTilerMapViewController(
     }
 
     /**
-     * 地図タップ時のヒットテスト。ポリライン上・ポリゴン内・円内のタップを onClick へ配送する。
+     * 地図タップ時のヒットテスト。
+     *
+     * 公開済みの入口なので残してあるが、中身はコア共通のカスケード
+     * （[dispatchOverlayTap]）に置き換わっている。以前はポリライン・ポリゴン・円の
+     * **すべて**に配送していたが、いまは他プロバイダと同じく先に当たった 1 つだけ。
      */
+    @Deprecated(
+        "オーバーレイのタップ配送はコアが行う。",
+        ReplaceWith("dispatchOverlayTap(point)"),
+    )
+    @Suppress("UNUSED_PARAMETER")
     suspend fun handleTap(point: GeoPoint) {
-        polylineController.findWithClosestPoint(point)?.let { hit ->
-            polylineController.dispatchClick(PolylineEvent(hit.entity.state, hit.closestPoint))
-        }
-        polygonController.find(point)?.let { entity ->
-            polygonController.dispatchClick(PolygonEvent(entity.state, point))
-        }
-        circleController.find(point)?.let { entity ->
-            circleController.dispatchClick(CircleEvent(entity.state, point))
-        }
+        dispatchOverlayTap(point)
     }
 
     /**
@@ -416,18 +423,14 @@ class MapTilerMapViewController(
      * ポリラインのヒットテスト、およびマーカークラスタリング（可視領域 bounds に基づくクラスタ算出）に用いる。
      */
     suspend fun dispatchCameraToOverlays() {
-        runCatching { notifyMapCameraPosition(currentCameraWithRegion()) }
+        runCatching {
+            val camera = currentCameraWithRegion()
+            latestOverlayCamera = camera
+            notifyMapCameraPosition(camera)
+        }
     }
 
     // --- RasterLayerCapableInterface ---
-
-    override suspend fun compositionRasterLayers(data: List<RasterLayerState>) {
-        rasterLayerController.add(data)
-    }
-
-    override suspend fun updateRasterLayer(state: RasterLayerState) {
-        rasterLayerController.update(state)
-    }
 
     override fun hasRasterLayer(state: RasterLayerState): Boolean =
         rasterLayerController.rasterLayerManager.getEntity(state.id) != null

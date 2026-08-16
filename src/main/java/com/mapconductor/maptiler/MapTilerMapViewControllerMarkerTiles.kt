@@ -35,14 +35,22 @@ internal suspend fun MapTilerMapViewController.renderTiledMarkers(data: List<Mar
 /**
  * タップ座標付近のタイリング・マーカーを [MarkerState.onClick] へ配送する。
  *
+ * クリックカスケードの先頭。マーカーが受け取ったら下のオーバーレイにも地図クリックにも
+ * 流さない（他プロバイダと同じ）。
+ *
  * @param point タップ座標。
  * @param nativeZoom MapTiler ネイティブズーム。
+ * @return マーカーがタップを消費したら true。
  */
 internal fun MapTilerMapViewController.handleMarkerTap(
     point: GeoPoint,
     nativeZoom: Double,
-) {
-    markerTileRenderer?.findMarkerAt(point, nativeZoom)?.let { it.onClick?.invoke(it) }
+): Boolean {
+    val state = markerTileRenderer?.findMarkerAt(point, nativeZoom) ?: return false
+    // clickable = false のマーカーは透過させる（コアの clickableOnly と同じ方針）。
+    if (!state.clickable) return false
+    state.onClick?.invoke(state)
+    return true
 }
 
 internal fun MapTilerMapViewController.createMarkerRenderingSupport(): MarkerRenderingSupport<Any> =
