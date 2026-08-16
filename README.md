@@ -12,6 +12,8 @@ This module wraps the official [`com.maptiler:maptiler-sdk-kotlin`](https://docs
 
 ## Setup
 
+https://mapconductor.com/setup/android/maptiler/
+
 Add your MapTiler Cloud API key. This module reads it from an
 `AndroidManifest.xml` `<meta-data>` entry (injected by the Secrets Gradle Plugin from
 `secrets.properties`):
@@ -43,6 +45,197 @@ fun MapView(modifier: Modifier = Modifier) {
         state = mapViewState,
         modifier = modifier,
     )
+}
+```
+
+## Components
+
+### MapTilerMapView [[docs]](https://mapconductor.com/mapview/)
+
+```kotlin
+@Composable
+fun MapExample() {
+    val initCameraPosition = MapCameraPosition(
+        position = GeoPoint(
+            latitude = 34.091,
+            longitude = -117.886,
+        ),
+        zoom = 9.0,
+        tilt = 60.0,
+        bearing = 30.0,
+    )
+
+    val mapViewState = rememberMapTilerMapViewState(
+        cameraPosition = initCameraPosition,
+    )
+
+    MapTilerMapView(mapViewState)
+}
+```
+
+------------------------------------------------------------------------
+
+### Marker [[docs]](https://mapconductor.com/markers/)
+
+```kotlin
+@Composable
+fun MarkerExample() {
+    val markerState = remember { MarkerState(
+        position = GeoPoint(...),
+        icon = DefaultMarkerIcon().copy(
+            label = "MapTiler",
+        ),
+        onClick = {
+            it.animate(MarkerAnimation.Bounce)
+        },
+    ) }
+
+    MapTilerMapView(...) {
+        Marker(markerState)
+    }
+}
+```
+
+------------------------------------------------------------------------
+
+### InfoBubble [[docs]](https://mapconductor.com/info-bubble/)
+
+```kotlin
+@Composable
+fun InfoBubbleExample() {
+    var selectedMarker by remember { mutableStateOf<MarkerState?>(null) }
+
+    val markerState = remember { MarkerState(
+        ...,
+        onClick = {
+            selectedMarker = it
+        },
+    ) }
+
+    MapTilerMapView(...) {
+        Marker(markerState)
+        selectedMarker?.let {
+            InfoBubble(
+                marker = it,
+            ) {
+                Text("Hello, world!")
+            }
+        }
+    }
+}
+```
+
+------------------------------------------------------------------------
+
+### Circle [[docs]](https://mapconductor.com/circle/)
+
+```kotlin
+@Composable
+fun CircleExample() {
+
+    val circleState = remember { CircleState(
+        center = GeoPoint(...),
+        radiusMeters = 50.0,
+        fillColor = Color.Blue.copy(alpha = 0.5f),
+        onClick = {
+            it.state.fillColor = Color.Red.copy(alpha = 0.5f)
+        }
+    ) }
+
+    MapTilerMapView(...) {
+        Circle(circleState)
+    }
+}
+```
+
+------------------------------------------------------------------------
+
+### Polyline [[docs]](https://mapconductor.com/polyline/)
+
+```kotlin
+@Composable
+fun PolylineExample() {
+
+    val polylineState = remember { PolylineState(
+            points = airports,
+            strokeColor = Color.Blue.copy(alpha = 0.5f),
+            strokeWidth = 4.dp,
+            geodesic = true,
+        ) }
+
+    MapTilerMapView(...) {
+        Polyline(polylineState)
+    }
+}
+```
+
+------------------------------------------------------------------------
+
+### Polygon [[docs]](https://mapconductor.com/polygon/)
+
+```kotlin
+@Composable
+fun PolygonExample() {
+
+    val polygonState = remember { PolygonState(
+        points = goryokaku,
+        strokeColor = Color.Blue.copy(alpha = 0.5f),
+        fillColor =  Color.Red.copy(alpha = 0.7f),
+    ) }
+
+    MapTilerMapView(...) {
+        Polygon(polygonState)
+    }
+}
+```
+
+------------------------------------------------------------------------
+
+### Polygon Hole
+
+```kotlin
+@Composable
+fun PolygonHoleExample() {
+
+    val polygonState =
+        remember {
+            PolygonState(
+                points = listOf(...),
+                holes = listOf(
+                            listOf(...),
+                            listOf(...),
+                        ),
+                fillColor = Color(0xCC787880),
+                strokeColor = Color.Red,
+                strokeWidth = 2.dp,
+            )
+        }
+
+    MapTilerMapView(...) {
+        Polygon(polygonState)
+    }
+}
+```
+
+------------------------------------------------------------------------
+
+### GroundImage [[docs]](https://mapconductor.com/ground-image/)
+
+```kotlin
+@Composable
+fun GroundImageExample() {
+    val groundImageState = remember { GroundImageState(
+        bounds = GeoRectBounds(
+            southWest = GeoPoint.fromLatLong(...),
+            northEast = GeoPoint.fromLatLong(...),
+        ),
+        image = image,
+        opacity = 0.5f,
+    ) }
+
+    MapTilerMapView(state = mapViewState) {
+        GroundImage(groundImageState)
+    }
 }
 ```
 
