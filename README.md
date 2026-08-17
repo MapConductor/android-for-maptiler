@@ -14,6 +14,8 @@ This module wraps the official [`com.maptiler:maptiler-sdk-kotlin`](https://docs
 
 https://mapconductor.com/setup/android/maptiler/
 
+### API key
+
 Add your MapTiler Cloud API key. This module reads it from an
 `AndroidManifest.xml` `<meta-data>` entry (injected by the Secrets Gradle Plugin from
 `secrets.properties`):
