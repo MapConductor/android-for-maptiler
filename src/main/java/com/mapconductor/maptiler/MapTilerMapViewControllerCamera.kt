@@ -2,6 +2,7 @@ package com.mapconductor.maptiler
 
 import com.mapconductor.core.features.GeoPoint
 import com.mapconductor.core.features.GeoRectBounds
+import com.mapconductor.core.map.CameraBearing
 import com.mapconductor.core.map.MapCameraPosition
 import com.mapconductor.core.map.MapGesture
 import com.mapconductor.core.map.MapUISettings
@@ -50,7 +51,7 @@ internal suspend fun MapTilerMapViewController.currentCameraWithRegion(): MapCam
         MapCameraPosition(
             position = center.toGeoPoint(),
             zoom = MapTilerMapViewController.mapTilerZoomToCore(zoom),
-            bearing = bearing,
+            bearing = CameraBearing.bearingFromNativeHeading(bearing),
             tilt = pitch,
             visibleRegion = region,
         )
@@ -79,7 +80,7 @@ internal fun MapTilerMapViewController.recoverLogicalCameraPosition(raw: MapCame
         )
     val distanceBackward =
         altitude * cos(pitchAbsRad) * tan(pitchAbsRad) * MapTilerMapViewController.NEGATIVE_TILT_TARGET_DISTANCE_SCALE
-    val originalPosition = Spherical.computeOffset(shiftedCenter, distanceBackward, raw.bearing + 180.0)
+    val originalPosition = Spherical.computeOffset(shiftedCenter, distanceBackward, CameraBearing.toNativeHeading(raw.bearing) + 180.0)
 
     return raw.copy(
         position = originalPosition,
@@ -172,7 +173,7 @@ internal fun MapTilerMapViewController.toCameraOptions(camera: MapCameraPosition
         return MTCameraOptions(
             center = camera.position.toLngLat(),
             zoom = MapTilerMapViewController.coreZoomToMapTiler(camera.zoom),
-            bearing = camera.bearing,
+            bearing = CameraBearing.toNativeHeading(camera.bearing),
             pitch = camera.tilt.coerceIn(0.0, 60.0),
         )
     }
@@ -193,14 +194,14 @@ internal fun MapTilerMapViewController.toCameraOptions(camera: MapCameraPosition
             cos(tiltAbsRad) *
             tan(tiltAbsRad) *
             MapTilerMapViewController.NEGATIVE_TILT_TARGET_DISTANCE_SCALE
-    val target = Spherical.computeOffset(camera.position, distanceForward, camera.bearing)
+    val target = Spherical.computeOffset(camera.position, distanceForward, CameraBearing.toNativeHeading(camera.bearing))
     val adjustedZoom =
         camera.zoom + MapTilerMapViewController.NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT * (tiltAbsDeg / 60.0)
 
     return MTCameraOptions(
         center = target.toLngLat(),
         zoom = MapTilerMapViewController.coreZoomToMapTiler(adjustedZoom),
-        bearing = camera.bearing,
+        bearing = CameraBearing.toNativeHeading(camera.bearing),
         pitch = tiltAbsDeg,
     )
 }
