@@ -31,6 +31,7 @@ import com.mapconductor.core.OnCameraMoveHandler
 import com.mapconductor.core.OnMapEventHandler
 import com.mapconductor.core.OnMapLoadedHandler
 import com.mapconductor.core.ResourceProvider
+import com.mapconductor.core.map.CameraBearing
 import com.mapconductor.core.map.CameraRestriction
 import com.mapconductor.core.map.LocalMapOverlayRegistry
 import com.mapconductor.core.map.LocalMapServiceRegistry
@@ -181,7 +182,7 @@ fun MapTilerMapSurface(
                 MTMapOptions(
                     cam.position.toLngLat(),
                     MapTilerMapViewController.coreZoomToMapTiler(cam.zoom),
-                    cam.bearing,
+                    CameraBearing.toNativeHeading(cam.bearing),
                     cam.tilt,
                 )
             }
@@ -412,7 +413,7 @@ private fun emitCamera(
                 MapCameraPosition(
                     position = center.toGeoPoint(),
                     zoom = MapTilerMapViewController.mapTilerZoomToCore(zoom),
-                    bearing = bearing,
+                    bearing = CameraBearing.bearingFromNativeHeading(bearing),
                     tilt = pitch,
                 )
             // tilt < 0 の擬似表現時は、正ピッチ・前進ターゲットの生状態から論理的な負tilt・元位置へ復元する。
