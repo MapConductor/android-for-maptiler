@@ -22,6 +22,7 @@ public final class com.mapconductor.maptiler.MapTilerDesign implements com.mapco
   public java.lang.Object getValue();
 }
 public final class com.mapconductor.maptiler.MapTilerDesign$Companion {
+  public final com.mapconductor.maptiler.MapTilerDesign getNone();
   public final com.mapconductor.maptiler.MapTilerDesign getStreets();
   public final com.mapconductor.maptiler.MapTilerDesign getStreetsDark();
   public final com.mapconductor.maptiler.MapTilerDesign getStreetsLight();
