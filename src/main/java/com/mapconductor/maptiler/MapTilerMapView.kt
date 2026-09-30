@@ -37,6 +37,8 @@ import com.mapconductor.core.map.LocalMapOverlayRegistry
 import com.mapconductor.core.map.LocalMapServiceRegistry
 import com.mapconductor.core.map.LocalMapViewController
 import com.mapconductor.core.map.MapCameraPosition
+import com.mapconductor.core.map.VectorStyleAsDesign
+import com.mapconductor.core.map.VectorStyleSupportKey
 import com.mapconductor.core.marker.MarkerRenderingSupportKey
 import com.mapconductor.core.marker.MarkerTilingOptions
 import com.maptiler.maptilersdk.events.MTEvent
@@ -44,7 +46,9 @@ import com.maptiler.maptilersdk.map.MTMapOptions
 import com.maptiler.maptilersdk.map.MTMapView
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.MTMapViewDelegate
+import com.maptiler.maptilersdk.map.style.MTMapReferenceStyle
 import com.maptiler.maptilersdk.map.types.MTData
+import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 
@@ -127,6 +131,24 @@ fun MapTilerMapSurface(
     }
 
     val design = state.mapDesignType
+
+    // MapTiler は MapLibre GL そのものなので、スタイルは渡せばそのまま描ける。
+    // `key(design.id)` の**外**に置く: 中に置くと、デザイン切替のたびに
+    // 「新しい合成の put → 古い合成の onDispose で remove」の順で走り、
+    // 登録が消える。スタイル切替はまさにこの capability が起こす。
+    DisposableEffect(state) {
+        state.serviceRegistry.put(
+            VectorStyleSupportKey,
+            VectorStyleAsDesign(state) { url, rules ->
+                MapTilerDesign(
+                    id = "vector-style:$url",
+                    referenceStyle = MTMapReferenceStyle.CUSTOM(URL(url)),
+                    attributionRules = rules,
+                )
+            },
+        )
+        onDispose { state.serviceRegistry.remove(VectorStyleSupportKey) }
+    }
 
     // デザイン（スタイル）切替時はコントローラと WebView を作り直し、確実に新スタイルを反映する。
     key(design.id) {

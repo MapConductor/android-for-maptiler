@@ -4,20 +4,21 @@ public final class com.mapconductor.maptiler.MapTilerAnnotationsKt {
 }
 public final class com.mapconductor.maptiler.MapTilerDesign implements com.mapconductor.maptiler.MapTilerMapDesignTypeInterface {
   public static final com.mapconductor.maptiler.MapTilerDesign$Companion Companion;
-  public com.mapconductor.maptiler.MapTilerDesign(java.lang.String, com.maptiler.maptilersdk.map.style.MTMapReferenceStyle, com.maptiler.maptilersdk.map.style.MTMapStyleVariant);
-  public com.mapconductor.maptiler.MapTilerDesign(java.lang.String, com.maptiler.maptilersdk.map.style.MTMapReferenceStyle, com.maptiler.maptilersdk.map.style.MTMapStyleVariant, int, kotlin.jvm.internal.DefaultConstructorMarker);
+  public com.mapconductor.maptiler.MapTilerDesign(java.lang.String, com.maptiler.maptilersdk.map.style.MTMapReferenceStyle, com.maptiler.maptilersdk.map.style.MTMapStyleVariant, java.util.List<com.mapconductor.core.map.AttributionRule>);
+  public com.mapconductor.maptiler.MapTilerDesign(java.lang.String, com.maptiler.maptilersdk.map.style.MTMapReferenceStyle, com.maptiler.maptilersdk.map.style.MTMapStyleVariant, java.util.List, int, kotlin.jvm.internal.DefaultConstructorMarker);
   public java.lang.String getId();
   public com.maptiler.maptilersdk.map.style.MTMapReferenceStyle getReferenceStyle();
   public com.maptiler.maptilersdk.map.style.MTMapStyleVariant getVariant();
+  public java.util.List<com.mapconductor.core.map.AttributionRule> getAttributionRules();
   public java.lang.String getValue();
   public final java.lang.String component1();
   public final com.maptiler.maptilersdk.map.style.MTMapReferenceStyle component2();
   public final com.maptiler.maptilersdk.map.style.MTMapStyleVariant component3();
-  public final com.mapconductor.maptiler.MapTilerDesign copy(java.lang.String, com.maptiler.maptilersdk.map.style.MTMapReferenceStyle, com.maptiler.maptilersdk.map.style.MTMapStyleVariant);
+  public final java.util.List<com.mapconductor.core.map.AttributionRule> component4();
+  public final com.mapconductor.maptiler.MapTilerDesign copy(java.lang.String, com.maptiler.maptilersdk.map.style.MTMapReferenceStyle, com.maptiler.maptilersdk.map.style.MTMapStyleVariant, java.util.List<com.mapconductor.core.map.AttributionRule>);
   public java.lang.String toString();
   public int hashCode();
   public boolean equals(java.lang.Object);
-  public java.util.List<com.mapconductor.core.map.AttributionRule> getAttributionRules();
   public java.lang.Object getId();
   public java.lang.Object getValue();
 }
