@@ -1,15 +1,15 @@
 [versions]
-composeLibs = "1.7.8"
+composeLibs = "1.12.1"
 # material3 は compose-ui とは別のバージョン系列。composeLibs（ui 系）を流用すると
 # 存在しない material3:1.7.8 を要求してクラスパスごと解決に失敗する。
 material3 = "1.4.0"
-agp = "9.2.1"
-kotlin = "2.0.21"
+agp = "9.4.1"
+kotlin = "2.4.20"
 
-composeBom = "2025.02.00"
-lifecycleRuntimeKtx = "2.8.7"
-maptilerSdk = "2.1.0"
-activityCompose = "1.9.3"
+composeBom = "2026.09.00"
+lifecycleRuntimeKtx = "2.11.0"
+maptilerSdk = "2.2.1"
+activityCompose = "1.13.0"
 ktLint = "14.2.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
