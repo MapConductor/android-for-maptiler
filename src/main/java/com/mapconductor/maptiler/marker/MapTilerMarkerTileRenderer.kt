@@ -1,5 +1,8 @@
 package com.mapconductor.maptiler.marker
 
+import com.mapconductor.core.InternalMapConductorApi
+import com.mapconductor.core.marker.MarkerHitPick
+import androidx.compose.ui.geometry.Offset
 import com.mapconductor.core.features.GeoPointInterface
 import com.mapconductor.core.marker.MarkerEntity
 import com.mapconductor.core.marker.MarkerManager
@@ -10,10 +13,10 @@ import com.mapconductor.core.raster.RasterLayerSource
 import com.mapconductor.core.raster.RasterLayerState
 import com.mapconductor.core.raster.TileScheme
 import com.mapconductor.core.tileserver.TileServerRegistry
-import java.util.UUID
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sqrt
+import java.util.UUID
 
 /**
  * 大量マーカー（「Bunch of Markers」等）を、他モジュール（maplibre 等）と同じ方式＝
@@ -93,8 +96,31 @@ class MapTilerMarkerTileRenderer(
     }
 
     /**
-     * タップ座標付近のマーカーを返す（クリック用の簡易ヒットテスト）。
+     * タップ座標に当たるマーカーを返す。選び方はコアの [MarkerHitPick.pick] と同じで、
+     * 指の下にアイコンかラベルが描かれているマーカーが、先端の近い別のマーカーより優先する。
+     *
+     * @param project 地理座標をビューの画面座標へ投影する（holder の toScreenOffset）。
      */
+    @OptIn(InternalMapConductorApi::class)
+    fun findMarkerAt(
+        tap: GeoPointInterface,
+        project: (GeoPointInterface) -> Offset?,
+    ): MarkerState? {
+        if (markers.isEmpty()) return null
+        val touchScreen = project(tap) ?: return null
+        val bounds = MarkerHitPick.searchBounds(tap, touchScreen, project) ?: return null
+        val candidates = markers.filter { bounds.contains(it.position) }
+        return MarkerHitPick.pickBy(touchScreen, candidates, { it }, project)
+    }
+
+    /**
+     * 旧来の判定（先端からの距離だけを見る）。ラベルやアイコンの大きさを見ないので、
+     * 指の下に描かれているマーカーより先端の近い別のマーカーを選ぶことがある。
+     */
+    @Deprecated(
+        "先端からの距離だけで選ぶ旧来の判定。findMarkerAt(tap, project) を使う。",
+        ReplaceWith("findMarkerAt(tap, project)"),
+    )
     fun findMarkerAt(
         tap: GeoPointInterface,
         nativeZoom: Double,

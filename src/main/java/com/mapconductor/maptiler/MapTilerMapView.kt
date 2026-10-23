@@ -249,7 +249,7 @@ fun MapTilerMapSurface(
                                         // MapTiler のタイルレンダラでヒットテストするのでここで先に見る。
                                         val markerHit =
                                             runCatching {
-                                                controller.handleMarkerTap(point, mtController.getZoom())
+                                                controller.handleMarkerTap(point)
                                             }.getOrDefault(false)
                                         if (!markerHit && !controller.dispatchOverlayTap(point)) {
                                             onClick?.invoke(point)
