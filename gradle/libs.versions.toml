@@ -8,7 +8,7 @@ kotlin = "2.4.20"
 
 composeBom = "2026.09.00"
 lifecycleRuntimeKtx = "2.11.0"
-maptilerSdk = "2.2.1"
+maptilerSdk = "2.2.2"
 activityCompose = "1.13.0"
 ktLint = "14.2.0"
 junit = "4.13.2"
