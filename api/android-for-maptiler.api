@@ -133,7 +133,7 @@ public final class com.mapconductor.maptiler.MapTilerMapViewControllerInterface$
 public final class com.mapconductor.maptiler.MapTilerMapViewControllerMarkerTilesKt {
   public static final com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer tileRenderer(com.mapconductor.maptiler.MapTilerMapViewController);
   public static final java.lang.Object renderTiledMarkers(com.mapconductor.maptiler.MapTilerMapViewController, java.util.List<com.mapconductor.core.marker.MarkerState>, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-  public static final boolean handleMarkerTap(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.features.GeoPoint, double);
+  public static final boolean handleMarkerTap(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.features.GeoPoint);
   public static final com.mapconductor.core.marker.MarkerRenderingSupport<java.lang.Object> createMarkerRenderingSupport(com.mapconductor.maptiler.MapTilerMapViewController);
 }
 public final class com.mapconductor.maptiler.MapTilerMapViewHolder implements com.mapconductor.core.map.MapViewHolderInterface<com.maptiler.maptilersdk.map.MTMapViewController, com.maptiler.maptilersdk.map.MTMapViewController> {
@@ -294,6 +294,7 @@ public final class com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer {
   public final com.mapconductor.core.raster.RasterLayerState render(java.util.List<com.mapconductor.core.marker.MarkerState>);
   public final java.lang.String getRasterLayerId();
   public final void clear();
+  public final com.mapconductor.core.marker.MarkerState findMarkerAt(com.mapconductor.core.features.GeoPointInterface, kotlin.jvm.functions.Function1<? super com.mapconductor.core.features.GeoPointInterface, androidx.compose.ui.geometry.Offset>);
   public final com.mapconductor.core.marker.MarkerState findMarkerAt(com.mapconductor.core.features.GeoPointInterface, double);
 }
 final class com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer$Companion {
