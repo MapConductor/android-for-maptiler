@@ -1,11 +1,11 @@
 package com.mapconductor.maptiler
 
-import java.net.URL
 import com.mapconductor.core.map.AttributionRule
 import com.mapconductor.core.map.BlankMapStyle
 import com.mapconductor.core.map.MapDesignTypeInterface
 import com.maptiler.maptilersdk.map.style.MTMapReferenceStyle
 import com.maptiler.maptilersdk.map.style.MTMapStyleVariant
+import java.net.URL
 
 /**
  * MapTiler の地図デザイン（リファレンススタイル + バリアント）を表すインターフェース。

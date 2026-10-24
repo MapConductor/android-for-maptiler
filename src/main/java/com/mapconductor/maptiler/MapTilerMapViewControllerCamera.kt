@@ -80,7 +80,11 @@ internal fun MapTilerMapViewController.recoverLogicalCameraPosition(raw: MapCame
         )
     val distanceBackward =
         altitude * cos(pitchAbsRad) * tan(pitchAbsRad) * MapTilerMapViewController.NEGATIVE_TILT_TARGET_DISTANCE_SCALE
-    val originalPosition = Spherical.computeOffset(shiftedCenter, distanceBackward, CameraBearing.toNativeHeading(raw.bearing) + 180.0)
+    val originalPosition =
+        Spherical.computeOffset(
+            shiftedCenter, distanceBackward,
+            CameraBearing.toNativeHeading(raw.bearing) + 180.0,
+        )
 
     return raw.copy(
         position = originalPosition,
@@ -194,7 +198,9 @@ internal fun MapTilerMapViewController.toCameraOptions(camera: MapCameraPosition
             cos(tiltAbsRad) *
             tan(tiltAbsRad) *
             MapTilerMapViewController.NEGATIVE_TILT_TARGET_DISTANCE_SCALE
-    val target = Spherical.computeOffset(camera.position, distanceForward, CameraBearing.toNativeHeading(camera.bearing))
+    val target =
+        Spherical
+            .computeOffset(camera.position, distanceForward, CameraBearing.toNativeHeading(camera.bearing))
     val adjustedZoom =
         camera.zoom + MapTilerMapViewController.NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT * (tiltAbsDeg / 60.0)
 
