@@ -48,7 +48,9 @@ internal fun MapTilerMarkerOverlay(
 ) {
     val density = LocalDensity.current.density
     val scope = rememberCoroutineScope()
-    val bitmapIcon = remember(marker.icon) { (marker.icon ?: DefaultMarkerIcon()).toBitmapIcon() }
+    // URL の画像が届くと、アイコンは同じインスタンスのまま hashCode だけ変わる。それもキーにする。
+    val icon = marker.icon
+    val bitmapIcon = remember(icon, icon?.hashCode()) { (icon ?: DefaultMarkerIcon()).toBitmapIcon() }
     val widthDp = remember(bitmapIcon) { (bitmapIcon.size.width / density).dp }
     val heightDp = remember(bitmapIcon) { (bitmapIcon.size.height / density).dp }
 
