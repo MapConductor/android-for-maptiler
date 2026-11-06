@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.mapconductor.compose.info.InfoBubbleEntry
 import com.mapconductor.core.marker.DefaultMarkerIcon
+import com.mapconductor.core.marker.iconRevision
 import com.mapconductor.core.marker.MarkerAnimation
 import com.mapconductor.core.marker.MarkerState
 import com.mapconductor.settings.Settings
@@ -48,9 +49,10 @@ internal fun MapTilerMarkerOverlay(
 ) {
     val density = LocalDensity.current.density
     val scope = rememberCoroutineScope()
-    // URL の画像が届くと、アイコンは同じインスタンスのまま hashCode だけ変わる。それもキーにする。
-    val icon = marker.icon
-    val bitmapIcon = remember(icon, icon?.hashCode()) { (icon ?: DefaultMarkerIcon()).toBitmapIcon() }
+    // URL の画像が届くと、アイコンは同じインスタンスのまま見た目だけ変わる。iconRevision が
+    // そのとき増えるので、それもキーにする（読むことで描き直しも起きる）。
+    val bitmapIcon =
+        remember(marker.icon, marker.iconRevision) { (marker.icon ?: DefaultMarkerIcon()).toBitmapIcon() }
     val widthDp = remember(bitmapIcon) { (bitmapIcon.size.width / density).dp }
     val heightDp = remember(bitmapIcon) { (bitmapIcon.size.height / density).dp }
 
