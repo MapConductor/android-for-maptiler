@@ -52,7 +52,11 @@ class MapTilerRasterLayerOverlayRenderer(
             val next = params.current.state
             if (prev.state.source != next.source) {
                 removeLayer(prev)
-                addLayer(next)
+                // Under new ids: the removal above is not applied before the
+                // add below, which then fails with "Source already exists" and
+                // leaves the layer gone. The marker and polygon tiles change
+                // source on every in-place change.
+                addLayer(next, generation = ++replacements)
             } else {
                 updatePaint(prev.layer, next)
                 prev.layer
@@ -76,9 +80,16 @@ class MapTilerRasterLayerOverlayRenderer(
         }
     }
 
-    private fun addLayer(state: RasterLayerState): MapTilerRasterLayerHandle? {
-        val sourceId = "raster-source-${state.id}"
-        val layerId = "raster-layer-${state.id}"
+    /** Counts source replacements, so each one gets ids of its own. */
+    private var replacements = 0
+
+    private fun addLayer(
+        state: RasterLayerState,
+        generation: Int = 0,
+    ): MapTilerRasterLayerHandle? {
+        val suffix = if (generation == 0) "" else "-$generation"
+        val sourceId = "raster-source-${state.id}$suffix"
+        val layerId = "raster-layer-${state.id}$suffix"
         val source = buildSource(sourceId, state.source) ?: return null
 
         val layer =
