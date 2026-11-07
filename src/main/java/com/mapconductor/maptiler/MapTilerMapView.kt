@@ -239,6 +239,13 @@ fun MapTilerMapSurface(
             onDispose { state.serviceRegistry.remove(MarkerRenderingSupportKey) }
         }
 
+        // MTMapView destroys its WebView itself; the controller (tile-server
+        // routes, overlay managers, its coroutine scope) is ours to free. Keyed
+        // like the WebView, so a design change frees the one it replaces.
+        DisposableEffect(controller) {
+            onDispose { controller.destroy() }
+        }
+
         // 設定を渡すだけ。**タイル経路に倒すかはコントローラが件数を見て決める**
         // （`shouldUseMarkerLayer`）。ここで `useMarkerLayer = markerTiling != null` と
         // 書くと、しきい値未満の件数でもタイル経路に落ちてマーカーが 1 つも描かれない。
