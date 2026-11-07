@@ -89,6 +89,11 @@ dependencies {
     } else {
         api("com.mapconductor:compose:$libraryVersion")
     }
+
+    testImplementation(libs.junit)
+    // Saver の保存 → 復元を実機の Bundle / Parcel で確かめる（SaverRoundTripTest）。
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
 }
 
 // Set project version for NMCP plugin
