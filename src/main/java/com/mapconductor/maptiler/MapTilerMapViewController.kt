@@ -31,6 +31,7 @@ import com.mapconductor.maptiler.circle.MapTilerCircleOverlayRenderer
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageController
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageOverlayRenderer
 import com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer
+import com.mapconductor.maptiler.marker.MarkerIdIndex
 import com.mapconductor.maptiler.polygon.MapTilerPolygonController
 import com.mapconductor.maptiler.polygon.MapTilerPolygonOverlayRenderer
 import com.mapconductor.maptiler.polyline.MapTilerPolylineController
@@ -206,8 +207,11 @@ class MapTilerMapViewController(
     }
 
     override fun hasMarker(state: MarkerState): Boolean =
-        _markers.value.any { it.id == state.id } ||
-            (markerTileRenderer?.markers?.any { it.id == state.id } ?: false)
+        overlayMarkerIds.contains(_markers.value, state.id) ||
+            (markerTileRenderer?.markers?.let { tiledMarkerIds.contains(it, state.id) } ?: false)
+
+    private val tiledMarkerIds = MarkerIdIndex()
+    private val overlayMarkerIds = MarkerIdIndex()
 
     // --- Marker clustering (android-marker-clustering) 連携 ---
 
