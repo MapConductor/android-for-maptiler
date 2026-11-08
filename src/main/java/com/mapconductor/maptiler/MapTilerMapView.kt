@@ -243,7 +243,14 @@ fun MapTilerMapSurface(
         // routes, overlay managers, its coroutine scope) is ours to free. Keyed
         // like the WebView, so a design change frees the one it replaces.
         DisposableEffect(controller) {
-            onDispose { controller.destroy() }
+            onDispose {
+                controller.destroy()
+                // No MapViewBase here to do it: the state (which the app keeps) must
+                // not hold on to the destroyed controller and its overlays. Only if
+                // it is still the attached one -- after a design change the new
+                // controller is attached before this runs.
+                state.detachController(controller)
+            }
         }
 
         // 設定を渡すだけ。**タイル経路に倒すかはコントローラが件数を見て決める**
