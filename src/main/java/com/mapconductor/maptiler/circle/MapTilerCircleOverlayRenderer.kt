@@ -6,6 +6,8 @@ import com.mapconductor.core.circle.CircleOverlayRendererInterface
 import com.mapconductor.core.circle.CircleState
 import com.mapconductor.core.geometry.OverlayGeoJson
 import com.mapconductor.core.geometry.circleToRing
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -141,9 +143,10 @@ class MapTilerCircleOverlayRenderer(
     private fun removeCircle(entity: CircleEntityInterface<MapTilerCircleHandle>) {
         val style = mtController.style ?: return
         val handle = entity.circle
-        runCatching { style.removeLayerById(handle.lineLayerId) }
-        runCatching { style.removeLayerById(handle.fillLayerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        style.removeLayerAndForget(handle.lineLayer)
+        style.removeLayerAndForget(handle.fillLayer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**

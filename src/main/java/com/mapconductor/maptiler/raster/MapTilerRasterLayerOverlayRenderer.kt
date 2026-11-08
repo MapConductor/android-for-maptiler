@@ -6,6 +6,8 @@ import com.mapconductor.core.raster.RasterLayerOverlayRendererInterface
 import com.mapconductor.core.raster.RasterLayerSource
 import com.mapconductor.core.raster.RasterLayerState
 import com.mapconductor.core.raster.TileScheme
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.MTTileScheme
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
@@ -121,8 +123,10 @@ class MapTilerRasterLayerOverlayRenderer(
     private fun removeLayer(entity: RasterLayerEntityInterface<MapTilerRasterLayerHandle>) {
         val style = mtController.style ?: return
         val handle = entity.layer
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        // ソースを替えるとき（onChange）も同じ id で足し直すので、ここで記録まで消す。
+        style.removeLayerAndForget(handle.layer)
+        style.removeSourceAndForget(handle.source)
     }
 
     private fun buildSource(

@@ -6,6 +6,8 @@ import com.mapconductor.core.geometry.buildUnwrappedPolylinePath
 import com.mapconductor.core.polyline.PolylineEntityInterface
 import com.mapconductor.core.polyline.PolylineOverlayRendererInterface
 import com.mapconductor.core.polyline.PolylineState
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -141,8 +143,9 @@ class MapTilerPolylineOverlayRenderer(
     private fun removeLine(entity: PolylineEntityInterface<MapTilerPolylineHandle>) {
         val style = mtController.style ?: return
         val handle = entity.polyline
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        style.removeLayerAndForget(handle.layer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**

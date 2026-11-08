@@ -4,6 +4,8 @@ import com.mapconductor.core.features.GeoRectBounds
 import com.mapconductor.core.groundimage.GroundImageEntityInterface
 import com.mapconductor.core.groundimage.GroundImageOverlayRendererInterface
 import com.mapconductor.core.groundimage.GroundImageState
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.LngLat
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
@@ -132,8 +134,9 @@ class MapTilerGroundImageOverlayRenderer(
     private fun removeGroundImage(entity: GroundImageEntityInterface<MapTilerGroundImageHandle>) {
         val style = mtController.style ?: return
         val handle = entity.groundImage
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        style.removeLayerAndForget(handle.layer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**
