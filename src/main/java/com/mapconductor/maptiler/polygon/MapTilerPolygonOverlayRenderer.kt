@@ -7,6 +7,8 @@ import com.mapconductor.core.polygon.PolygonEntityInterface
 import com.mapconductor.core.polygon.PolygonOverlayRendererInterface
 import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polygon.unionHoles
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -164,9 +166,10 @@ class MapTilerPolygonOverlayRenderer(
     private fun removePolygon(entity: PolygonEntityInterface<MapTilerPolygonHandle>) {
         val style = mtController.style ?: return
         val handle = entity.polygon
-        runCatching { style.removeLayerById(handle.lineLayerId) }
-        runCatching { style.removeLayerById(handle.fillLayerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        style.removeLayerAndForget(handle.lineLayer)
+        style.removeLayerAndForget(handle.fillLayer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**
