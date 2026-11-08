@@ -334,6 +334,8 @@ class MapTilerMapViewController(
         markerRasterId?.let { rasterLayerController.removeById(it) }
         markerRasterId = null
         markerTileRenderer?.clear()
+        // 拡張モジュール（クラスタリングなど）が登録した Strategy のマーカーも消す。
+        clearStrategyMarkerControllers()
     }
 
     override fun destroy() {
