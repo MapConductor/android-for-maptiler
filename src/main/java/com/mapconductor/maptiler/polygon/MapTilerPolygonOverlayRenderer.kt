@@ -7,6 +7,9 @@ import com.mapconductor.core.polygon.PolygonEntityInterface
 import com.mapconductor.core.polygon.PolygonOverlayRendererInterface
 import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polygon.unionHoles
+import com.mapconductor.maptiler.awaitPageLayers
+import com.mapconductor.maptiler.removeOwnedLayer
+import com.mapconductor.maptiler.removeOwnedSource
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -30,9 +33,19 @@ import android.util.Log
 class MapTilerPolygonOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : PolygonOverlayRendererInterface<MapTilerPolygonHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the polygons'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<PolygonOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerPolygonHandle?> = data.map { addPolygon(it.state) }
+    ): List<MapTilerPolygonHandle?> {
+        val handles = data.map { addPolygon(it.state) }
+        if (mtController.style != null) {
+            mtController.awaitPageLayers(handles.filterNotNull().flatMap { listOf(it.fillLayerId, it.lineLayerId) })
+        }
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<PolygonOverlayRendererInterface.ChangeParamsInterface<MapTilerPolygonHandle>>,
@@ -164,9 +177,9 @@ class MapTilerPolygonOverlayRenderer(
     private fun removePolygon(entity: PolygonEntityInterface<MapTilerPolygonHandle>) {
         val style = mtController.style ?: return
         val handle = entity.polygon
-        runCatching { style.removeLayerById(handle.lineLayerId) }
-        runCatching { style.removeLayerById(handle.fillLayerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        style.removeOwnedLayer(handle.lineLayer)
+        style.removeOwnedLayer(handle.fillLayer)
+        style.removeOwnedSource(handle.source)
     }
 
     /**

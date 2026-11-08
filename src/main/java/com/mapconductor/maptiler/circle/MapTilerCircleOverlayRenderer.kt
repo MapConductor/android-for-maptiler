@@ -6,6 +6,9 @@ import com.mapconductor.core.circle.CircleOverlayRendererInterface
 import com.mapconductor.core.circle.CircleState
 import com.mapconductor.core.geometry.OverlayGeoJson
 import com.mapconductor.core.geometry.circleToRing
+import com.mapconductor.maptiler.awaitPageLayers
+import com.mapconductor.maptiler.removeOwnedLayer
+import com.mapconductor.maptiler.removeOwnedSource
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -30,9 +33,19 @@ import android.util.Log
 class MapTilerCircleOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : CircleOverlayRendererInterface<MapTilerCircleHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the circles'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<CircleOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerCircleHandle?> = data.map { addCircle(it.state) }
+    ): List<MapTilerCircleHandle?> {
+        val handles = data.map { addCircle(it.state) }
+        if (mtController.style != null) {
+            mtController.awaitPageLayers(handles.filterNotNull().flatMap { listOf(it.fillLayerId, it.lineLayerId) })
+        }
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<CircleOverlayRendererInterface.ChangeParamsInterface<MapTilerCircleHandle>>,
@@ -141,9 +154,9 @@ class MapTilerCircleOverlayRenderer(
     private fun removeCircle(entity: CircleEntityInterface<MapTilerCircleHandle>) {
         val style = mtController.style ?: return
         val handle = entity.circle
-        runCatching { style.removeLayerById(handle.lineLayerId) }
-        runCatching { style.removeLayerById(handle.fillLayerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        style.removeOwnedLayer(handle.lineLayer)
+        style.removeOwnedLayer(handle.fillLayer)
+        style.removeOwnedSource(handle.source)
     }
 
     /**

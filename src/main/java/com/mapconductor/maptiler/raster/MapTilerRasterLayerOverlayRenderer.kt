@@ -6,6 +6,9 @@ import com.mapconductor.core.raster.RasterLayerOverlayRendererInterface
 import com.mapconductor.core.raster.RasterLayerSource
 import com.mapconductor.core.raster.RasterLayerState
 import com.mapconductor.core.raster.TileScheme
+import com.mapconductor.maptiler.awaitPageLayers
+import com.mapconductor.maptiler.removeOwnedLayer
+import com.mapconductor.maptiler.removeOwnedSource
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.MTTileScheme
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
@@ -35,19 +38,29 @@ class MapTilerRasterLayerOverlayRenderer(
     /**
      * MapTiler Android は WebView(MapLibre GL JS) 越しにタイルを取るため、
      * ネイティブ側からリクエストヘッダを差し替える口が無い。
+     *
+     * Returns once the layers are on the page's map, so `onAdded` of the
+     * layer -- and of the polygons and markers drawn into it as tiles --
+     * comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
      */
     override suspend fun onAdd(
         data: List<RasterLayerOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerRasterLayerHandle?> =
-        data.map {
-            RasterHeaderRuleSet.warnUnsupported(provider = "MapTiler", state = it.state)
-            addLayer(it.state)
-        }
+    ): List<MapTilerRasterLayerHandle?> {
+        val handles =
+            data.map {
+                RasterHeaderRuleSet.warnUnsupported(provider = "MapTiler", state = it.state)
+                addLayer(it.state)
+            }
+        awaitOnMap(handles)
+        return handles
+    }
 
+    /** Returns once a layer added again under a new source is on the map, as [onAdd]. */
     override suspend fun onChange(
         data: List<RasterLayerOverlayRendererInterface.ChangeParamsInterface<MapTilerRasterLayerHandle>>,
-    ): List<MapTilerRasterLayerHandle?> =
-        data.map { params ->
+    ): List<MapTilerRasterLayerHandle?> {
+        val replaced = mutableListOf<MapTilerRasterLayerHandle?>()
+        val handles = data.map { params ->
             val prev = params.prev
             val next = params.current.state
             if (prev.state.source != next.source) {
@@ -56,12 +69,20 @@ class MapTilerRasterLayerOverlayRenderer(
                 // add below, which then fails with "Source already exists" and
                 // leaves the layer gone. The marker and polygon tiles change
                 // source on every in-place change.
-                addLayer(next, generation = ++replacements)
+                addLayer(next, generation = ++replacements).also { replaced += it }
             } else {
                 updatePaint(prev.layer, next)
                 prev.layer
             }
         }
+        awaitOnMap(replaced)
+        return handles
+    }
+
+    private suspend fun awaitOnMap(handles: List<MapTilerRasterLayerHandle?>) {
+        if (mtController.style == null) return
+        mtController.awaitPageLayers(handles.mapNotNull { it?.layerId })
+    }
 
     override suspend fun onRemove(data: List<RasterLayerEntityInterface<MapTilerRasterLayerHandle>>) {
         data.forEach { removeLayer(it) }
@@ -132,8 +153,8 @@ class MapTilerRasterLayerOverlayRenderer(
     private fun removeLayer(entity: RasterLayerEntityInterface<MapTilerRasterLayerHandle>) {
         val style = mtController.style ?: return
         val handle = entity.layer
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        style.removeOwnedLayer(handle.layer)
+        style.removeOwnedSource(handle.source)
     }
 
     private fun buildSource(

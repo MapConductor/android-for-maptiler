@@ -4,6 +4,9 @@ import com.mapconductor.core.features.GeoRectBounds
 import com.mapconductor.core.groundimage.GroundImageEntityInterface
 import com.mapconductor.core.groundimage.GroundImageOverlayRendererInterface
 import com.mapconductor.core.groundimage.GroundImageState
+import com.mapconductor.maptiler.awaitPageLayers
+import com.mapconductor.maptiler.removeOwnedLayer
+import com.mapconductor.maptiler.removeOwnedSource
 import com.maptiler.maptilersdk.map.LngLat
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
@@ -32,9 +35,17 @@ import android.util.Log
 class MapTilerGroundImageOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : GroundImageOverlayRendererInterface<MapTilerGroundImageHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the ground images'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<GroundImageOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerGroundImageHandle?> = data.map { addGroundImage(it.state) }
+    ): List<MapTilerGroundImageHandle?> {
+        val handles = data.map { addGroundImage(it.state) }
+        if (mtController.style != null) mtController.awaitPageLayers(handles.mapNotNull { it?.layerId })
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<GroundImageOverlayRendererInterface.ChangeParamsInterface<MapTilerGroundImageHandle>>,
@@ -132,8 +143,8 @@ class MapTilerGroundImageOverlayRenderer(
     private fun removeGroundImage(entity: GroundImageEntityInterface<MapTilerGroundImageHandle>) {
         val style = mtController.style ?: return
         val handle = entity.groundImage
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        style.removeOwnedLayer(handle.layer)
+        style.removeOwnedSource(handle.source)
     }
 
     /**

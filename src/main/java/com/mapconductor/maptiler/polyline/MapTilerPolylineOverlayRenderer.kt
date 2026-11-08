@@ -6,6 +6,9 @@ import com.mapconductor.core.geometry.buildUnwrappedPolylinePath
 import com.mapconductor.core.polyline.PolylineEntityInterface
 import com.mapconductor.core.polyline.PolylineOverlayRendererInterface
 import com.mapconductor.core.polyline.PolylineState
+import com.mapconductor.maptiler.awaitPageLayers
+import com.mapconductor.maptiler.removeOwnedLayer
+import com.mapconductor.maptiler.removeOwnedSource
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -28,9 +31,17 @@ import android.util.Log
 class MapTilerPolylineOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : PolylineOverlayRendererInterface<MapTilerPolylineHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the polylines'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<PolylineOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerPolylineHandle?> = data.map { addLine(it.state) }
+    ): List<MapTilerPolylineHandle?> {
+        val handles = data.map { addLine(it.state) }
+        if (mtController.style != null) mtController.awaitPageLayers(handles.mapNotNull { it?.layerId })
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<PolylineOverlayRendererInterface.ChangeParamsInterface<MapTilerPolylineHandle>>,
@@ -141,8 +152,8 @@ class MapTilerPolylineOverlayRenderer(
     private fun removeLine(entity: PolylineEntityInterface<MapTilerPolylineHandle>) {
         val style = mtController.style ?: return
         val handle = entity.polyline
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        style.removeOwnedLayer(handle.layer)
+        style.removeOwnedSource(handle.source)
     }
 
     /**
