@@ -316,11 +316,13 @@ fun MapTilerMapSurface(
                         // 非 Compose ホストが `setMapDesignType` を直接呼んだ場合は
                         // 調整が落ちたままになる。
                         mutations.onStyleLoaded()
+                        // 重なり順の帯の順（下から）に足し直す。
+                        mtController.style?.let { MapTilerOverlayStacking.reset(it) }
                         controller.reapplyRasterLayers()
-                        controller.reapplyPolylines()
+                        controller.reapplyGroundImages()
                         controller.reapplyPolygons()
                         controller.reapplyCircles()
-                        controller.reapplyGroundImages()
+                        controller.reapplyPolylines()
                         controller.mapLoaded.value = true
                         controller.dispatchInitialCameraToOverlays()
                         onLoaded?.invoke(currentState)
@@ -381,6 +383,13 @@ fun MapTilerMapSurface(
                                     currentState.updateCameraPosition(pos)
                                     coroutineScope.launch { controller.dispatchCameraToOverlays() }
                                     onMoveEnd?.invoke(pos)
+                                }
+
+                            MTEvent.ON_IDLE ->
+                                // SDK はこのあとで待たせていた層を送る。1 度メインへ戻してから
+                                // 並びを送り直す（MapTilerOverlayStacking.onIdle）。
+                                mtController.style?.let { style ->
+                                    coroutineScope.launch { MapTilerOverlayStacking.onIdle(style) }
                                 }
 
                             else -> Unit

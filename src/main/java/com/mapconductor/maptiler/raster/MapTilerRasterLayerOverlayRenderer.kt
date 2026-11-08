@@ -1,11 +1,13 @@
 package com.mapconductor.maptiler.raster
 
+import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.raster.RasterHeaderRuleSet
 import com.mapconductor.core.raster.RasterLayerEntityInterface
 import com.mapconductor.core.raster.RasterLayerOverlayRendererInterface
 import com.mapconductor.core.raster.RasterLayerSource
 import com.mapconductor.core.raster.RasterLayerState
 import com.mapconductor.core.raster.TileScheme
+import com.mapconductor.maptiler.MapTilerOverlayStacking
 import com.mapconductor.maptiler.removeLayerAndForget
 import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
@@ -74,13 +76,25 @@ class MapTilerRasterLayerOverlayRenderer(
         val style = mtController.style ?: return
         handles.forEach { handle ->
             runCatching { style.addSource(handle.source) }
-            runCatching { style.addLayer(handle.layer) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.layer, stackKey(handle.layer.identifier)) }
         }
     }
+
+    /** 層の id → zIndex（帯の中の順）。handle は公開型なので持たせずここで覚える。 */
+    private val zIndexByLayer = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** ラスターの帯（一番下）。マーカーのタイルはマーカーの帯の一番下。 */
+    private fun stackKey(layerId: String) =
+        if (layerId.startsWith("raster-layer-marker-tile-")) {
+            MapTilerOverlayStacking.MARKER_TILE
+        } else {
+            MapTilerOverlayStacking.key(OverlayKind.RasterLayer, zIndexByLayer[layerId] ?: 0)
+        }
 
     private fun addLayer(state: RasterLayerState): MapTilerRasterLayerHandle? {
         val sourceId = "raster-source-${state.id}"
         val layerId = "raster-layer-${state.id}"
+        zIndexByLayer[layerId] = state.zIndex
         val source = buildSource(sourceId, state.source) ?: return null
 
         val layer =
@@ -99,7 +113,7 @@ class MapTilerRasterLayerOverlayRenderer(
         // ソース → レイヤの順に追加する。既存の場合の例外は無視する。
         runCatching { style.addSource(source) }
             .onFailure { Log.w(TAG, "addSource failed: ${it.message}") }
-        runCatching { style.addLayer(layer) }
+        runCatching { MapTilerOverlayStacking.add(style, layer, stackKey(layer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer failed: ${it.message}") }
         return handle
     }
@@ -125,6 +139,7 @@ class MapTilerRasterLayerOverlayRenderer(
         val handle = entity.layer
         // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
         // ソースを替えるとき（onChange）も同じ id で足し直すので、ここで記録まで消す。
+        MapTilerOverlayStacking.remove(style, handle.layer.identifier)
         style.removeLayerAndForget(handle.layer)
         style.removeSourceAndForget(handle.source)
     }
