@@ -52,6 +52,9 @@ internal object MapTilerOverlayStacking {
     /** ポリゴンのタイル: ポリゴンの帯の一番下。 */
     val POLYGON_TILE = key(OverlayKind.Polygon, Int.MIN_VALUE)
 
+    /** ポリラインのタイル（ラスター）: ポリラインの帯の一番下（サークルの上、ネイティブのポリラインの下）。 */
+    val POLYLINE_TILE = key(OverlayKind.Polyline, Int.MIN_VALUE)
+
     fun add(
         style: MTStyle,
         layer: MTLayer,
