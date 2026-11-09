@@ -49,6 +49,9 @@ internal object MapTilerOverlayStacking {
     /** マーカーのタイル: マーカーの帯の一番下。 */
     val MARKER_TILE = key(OverlayKind.Marker, Int.MIN_VALUE)
 
+    /** ポリゴンのタイル: ポリゴンの帯の一番下。 */
+    val POLYGON_TILE = key(OverlayKind.Polygon, Int.MIN_VALUE)
+
     fun add(
         style: MTStyle,
         layer: MTLayer,

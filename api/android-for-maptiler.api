@@ -169,6 +169,7 @@ public final class com.mapconductor.maptiler.MapTilerOverlayStacking {
   public static final com.mapconductor.maptiler.MapTilerOverlayStacking INSTANCE;
   public final com.mapconductor.core.controller.OverlayStacking$Key key(com.mapconductor.core.controller.OverlayKind, int);
   public final com.mapconductor.core.controller.OverlayStacking$Key getMARKER_TILE();
+  public final com.mapconductor.core.controller.OverlayStacking$Key getPOLYGON_TILE();
   public final void add(com.maptiler.maptilersdk.map.style.MTStyle, com.maptiler.maptilersdk.map.style.layer.MTLayer, com.mapconductor.core.controller.OverlayStacking$Key);
   public final void remove(com.maptiler.maptilersdk.map.style.MTStyle, java.lang.String);
   public final void onIdle(com.maptiler.maptilersdk.map.style.MTStyle);

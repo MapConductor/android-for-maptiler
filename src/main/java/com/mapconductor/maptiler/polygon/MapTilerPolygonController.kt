@@ -18,6 +18,8 @@ class MapTilerPolygonController(
      * 既知のポリゴンを再適用する（地図 `ready` 後の復元用）。
      */
     fun reapply() {
-        renderer.reapply(polygonManager.allEntities().map { it.polygon })
+        // Polygons drawn as tiles (PolygonController.tiler) have no handle.
+        @Suppress("USELESS_CAST")
+        renderer.reapply(polygonManager.allEntities().mapNotNull { it.polygon as MapTilerPolygonHandle? })
     }
 }
