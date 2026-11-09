@@ -38,7 +38,10 @@ class MapTilerViewState(
     MapTilerViewStateInterface {
     private var _mapDesignType by mutableStateOf(mapDesignType)
 
-    private var controller: MapTilerMapViewController? = null
+    // Read through the base so that letting go of the controller there (MapViewBase
+    // does it when the map is torn down) leaves nothing behind here.
+    private val controller: MapTilerMapViewController?
+        get() = attachedMapController as? MapTilerMapViewController
 
     override var mapDesignType: MapTilerMapDesignTypeInterface
         get() = _mapDesignType
@@ -49,7 +52,6 @@ class MapTilerViewState(
 
     /** MapView 生成時にコントローラを紐付ける。 */
     fun setController(controller: MapTilerMapViewController) {
-        this.controller = controller
         // 初期カメラは MTMapOptions で地図生成時に渡しているので、接続時には移動しない。
         attachController(controller, moveToInitialCamera = false)
     }

@@ -239,6 +239,20 @@ fun MapTilerMapSurface(
             onDispose { state.serviceRegistry.remove(MarkerRenderingSupportKey) }
         }
 
+        // MTMapView destroys its WebView itself; the controller (tile-server
+        // routes, overlay managers, its coroutine scope) is ours to free. Keyed
+        // like the WebView, so a design change frees the one it replaces.
+        DisposableEffect(controller) {
+            onDispose {
+                controller.destroy()
+                // No MapViewBase here to do it: the state (which the app keeps) must
+                // not hold on to the destroyed controller and its overlays. Only if
+                // it is still the attached one -- after a design change the new
+                // controller is attached before this runs.
+                state.detachController(controller)
+            }
+        }
+
         // 設定を渡すだけ。**タイル経路に倒すかはコントローラが件数を見て決める**
         // （`shouldUseMarkerLayer`）。ここで `useMarkerLayer = markerTiling != null` と
         // 書くと、しきい値未満の件数でもタイル経路に落ちてマーカーが 1 つも描かれない。
@@ -302,11 +316,13 @@ fun MapTilerMapSurface(
                         // 非 Compose ホストが `setMapDesignType` を直接呼んだ場合は
                         // 調整が落ちたままになる。
                         mutations.onStyleLoaded()
+                        // 重なり順の帯の順（下から）に足し直す。
+                        mtController.style?.let { MapTilerOverlayStacking.reset(it) }
                         controller.reapplyRasterLayers()
-                        controller.reapplyPolylines()
+                        controller.reapplyGroundImages()
                         controller.reapplyPolygons()
                         controller.reapplyCircles()
-                        controller.reapplyGroundImages()
+                        controller.reapplyPolylines()
                         controller.mapLoaded.value = true
                         controller.dispatchInitialCameraToOverlays()
                         onLoaded?.invoke(currentState)
@@ -367,6 +383,13 @@ fun MapTilerMapSurface(
                                     currentState.updateCameraPosition(pos)
                                     coroutineScope.launch { controller.dispatchCameraToOverlays() }
                                     onMoveEnd?.invoke(pos)
+                                }
+
+                            MTEvent.ON_IDLE ->
+                                // SDK はこのあとで待たせていた層を送る。1 度メインへ戻してから
+                                // 並びを送り直す（MapTilerOverlayStacking.onIdle）。
+                                mtController.style?.let { style ->
+                                    coroutineScope.launch { MapTilerOverlayStacking.onIdle(style) }
                                 }
 
                             else -> Unit

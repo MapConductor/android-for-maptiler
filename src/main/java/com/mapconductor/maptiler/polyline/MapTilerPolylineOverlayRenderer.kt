@@ -1,11 +1,15 @@
 package com.mapconductor.maptiler.polyline
 
 import androidx.compose.ui.graphics.toArgb
+import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.geometry.OverlayGeoJson
 import com.mapconductor.core.geometry.buildUnwrappedPolylinePath
 import com.mapconductor.core.polyline.PolylineEntityInterface
 import com.mapconductor.core.polyline.PolylineOverlayRendererInterface
 import com.mapconductor.core.polyline.PolylineState
+import com.mapconductor.maptiler.MapTilerOverlayStacking
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -65,14 +69,21 @@ class MapTilerPolylineOverlayRenderer(
         val style = mtController.style ?: return
         handles.forEach { handle ->
             runCatching { style.addSource(handle.source) }
-            runCatching { style.addLayer(handle.layer) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.layer, stackKey(handle.layer.identifier)) }
         }
     }
+
+    /** 層の id → zIndex（帯の中の順）。handle は公開型なので持たせずここで覚える。 */
+    private val zIndexByLayer = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** ポリラインの帯。同じ鍵なら後から足したもの（輪郭）が上。 */
+    private fun stackKey(layerId: String) = MapTilerOverlayStacking.key(OverlayKind.Polyline, zIndexByLayer[layerId] ?: 0)
 
     private fun addLine(state: PolylineState): MapTilerPolylineHandle? {
         val json = buildGeoJson(state) ?: return null
         val sourceId = "polyline-source-${state.id}"
         val layerId = "polyline-layer-${state.id}"
+        zIndexByLayer[layerId] = state.zIndex
         val source = MTGeoJSONSource.fromJsonString(sourceId, json)
         // 色の alpha は line-opacity で表現し、line-color は不透明 RGB とする（二重適用を避ける）。
         val opaqueColor = state.strokeColor.toArgb() or ALPHA_MASK
@@ -91,7 +102,7 @@ class MapTilerPolylineOverlayRenderer(
         val style = mtController.style ?: return handle
         runCatching { style.addSource(source) }
             .onFailure { Log.w(TAG, "addSource failed: ${it.message}") }
-        runCatching { style.addLayer(layer) }
+        runCatching { MapTilerOverlayStacking.add(style, layer, stackKey(layer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer failed: ${it.message}") }
         return handle
     }
@@ -141,8 +152,10 @@ class MapTilerPolylineOverlayRenderer(
     private fun removeLine(entity: PolylineEntityInterface<MapTilerPolylineHandle>) {
         val style = mtController.style ?: return
         val handle = entity.polyline
-        runCatching { style.removeLayerById(handle.layerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        MapTilerOverlayStacking.remove(style, handle.layer.identifier)
+        style.removeLayerAndForget(handle.layer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**
