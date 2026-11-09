@@ -3,9 +3,6 @@ package com.mapconductor.maptiler
 import com.maptiler.maptilersdk.bridge.MTBridgeReturnType
 import com.maptiler.maptilersdk.bridge.MTCommand
 import com.maptiler.maptilersdk.map.MTMapViewController
-import com.maptiler.maptilersdk.map.style.MTStyle
-import com.maptiler.maptilersdk.map.style.layer.MTLayer
-import com.maptiler.maptilersdk.map.style.source.MTSource
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -124,23 +121,4 @@ private class PageScript(
     override val isPrimitiveReturnType: Boolean = true
 
     override fun toJS(): String = js
-}
-
-/**
- * Takes [layer] off the map and out of the style's own record of ids.
- *
- * `removeLayerById` only reaches the page: `MTStyle` still lists the id, so
- * adding a layer of the same id later failed with "Layer already exists" and
- * nothing was drawn -- an overlay removed and added again (Boston's Downtown
- * after City parcels) stayed off the map while reporting `onAdded`.
- * `removeLayer` with the object clears both. The by-id call stays as the
- * fallback for a layer the style never recorded.
- */
-internal fun MTStyle.removeOwnedLayer(layer: MTLayer) {
-    runCatching { removeLayer(layer) }.onFailure { runCatching { removeLayerById(layer.identifier) } }
-}
-
-/** [removeOwnedLayer] for a source. */
-internal fun MTStyle.removeOwnedSource(source: MTSource) {
-    runCatching { removeSource(source) }.onFailure { runCatching { removeSourceById(source.identifier) } }
 }

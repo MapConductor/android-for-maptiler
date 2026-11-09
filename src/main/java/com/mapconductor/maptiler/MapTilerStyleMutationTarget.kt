@@ -118,9 +118,12 @@ internal class MapTilerStyleMutationTarget(
 
     override fun removeLayer(layerId: String) {
         val target = style() ?: return
-        // `removeLayerById` reaches the page without being checked against
-        // anything, and removing an absent layer there is a no-op.
-        target.removeLayerById(layerId)
+        // Remove it from MTStyle's record too: `removeLayerById` alone leaves
+        // the id recorded, and adding the same background layer again throws
+        // LayerAlreadyExists. A layer MTStyle never recorded falls back to
+        // `removeLayerById`, which reaches the page unchecked (a no-op when the
+        // layer is absent). See MapTilerStyleRemoval.kt.
+        target.removeLayerAndForget(MTBackgroundLayer(layerId))
         own(target) -= layerId
     }
 

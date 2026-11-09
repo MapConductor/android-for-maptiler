@@ -4,11 +4,13 @@ import androidx.compose.ui.graphics.toArgb
 import com.mapconductor.core.circle.CircleEntityInterface
 import com.mapconductor.core.circle.CircleOverlayRendererInterface
 import com.mapconductor.core.circle.CircleState
+import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.geometry.OverlayGeoJson
 import com.mapconductor.core.geometry.circleToRing
+import com.mapconductor.maptiler.MapTilerOverlayStacking
 import com.mapconductor.maptiler.awaitPageLayers
-import com.mapconductor.maptiler.removeOwnedLayer
-import com.mapconductor.maptiler.removeOwnedSource
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -79,16 +81,24 @@ class MapTilerCircleOverlayRenderer(
         val style = mtController.style ?: return
         handles.forEach { handle ->
             runCatching { style.addSource(handle.source) }
-            runCatching { style.addLayer(handle.fillLayer) }
-            runCatching { style.addLayer(handle.lineLayer) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.fillLayer, stackKey(handle.fillLayer.identifier)) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.lineLayer, stackKey(handle.lineLayer.identifier)) }
         }
     }
+
+    /** 層の id → zIndex（帯の中の順）。handle は公開型なので持たせずここで覚える。 */
+    private val zIndexByLayer = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** サークルの帯。同じ鍵なら後から足したもの（輪郭）が上。 */
+    private fun stackKey(layerId: String) = MapTilerOverlayStacking.key(OverlayKind.Circle, zIndexByLayer[layerId] ?: 0)
 
     private fun addCircle(state: CircleState): MapTilerCircleHandle? {
         val json = buildGeoJson(state) ?: return null
         val sourceId = "circle-source-${state.id}"
         val fillLayerId = "circle-fill-${state.id}"
         val lineLayerId = "circle-line-${state.id}"
+        zIndexByLayer[fillLayerId] = state.zIndex ?: 0
+        zIndexByLayer[lineLayerId] = state.zIndex ?: 0
         val source = MTGeoJSONSource.fromJsonString(sourceId, json)
 
         val fillLayer =
@@ -112,9 +122,9 @@ class MapTilerCircleOverlayRenderer(
         val style = mtController.style ?: return handle
         runCatching { style.addSource(source) }
             .onFailure { Log.w(TAG, "addSource failed: ${it.message}") }
-        runCatching { style.addLayer(fillLayer) }
+        runCatching { MapTilerOverlayStacking.add(style, fillLayer, stackKey(fillLayer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer(fill) failed: ${it.message}") }
-        runCatching { style.addLayer(lineLayer) }
+        runCatching { MapTilerOverlayStacking.add(style, lineLayer, stackKey(lineLayer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer(line) failed: ${it.message}") }
         return handle
     }
@@ -154,9 +164,12 @@ class MapTilerCircleOverlayRenderer(
     private fun removeCircle(entity: CircleEntityInterface<MapTilerCircleHandle>) {
         val style = mtController.style ?: return
         val handle = entity.circle
-        style.removeOwnedLayer(handle.lineLayer)
-        style.removeOwnedLayer(handle.fillLayer)
-        style.removeOwnedSource(handle.source)
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        MapTilerOverlayStacking.remove(style, handle.lineLayer.identifier)
+        style.removeLayerAndForget(handle.lineLayer)
+        MapTilerOverlayStacking.remove(style, handle.fillLayer.identifier)
+        style.removeLayerAndForget(handle.fillLayer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**

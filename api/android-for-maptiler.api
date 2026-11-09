@@ -165,6 +165,20 @@ final class com.mapconductor.maptiler.MapTilerMapViewSaver$Companion {
 public final class com.mapconductor.maptiler.MapTilerMapViewScope extends com.mapconductor.compose.MapViewScope {
   public com.mapconductor.maptiler.MapTilerMapViewScope();
 }
+public final class com.mapconductor.maptiler.MapTilerOverlayStacking {
+  public static final com.mapconductor.maptiler.MapTilerOverlayStacking INSTANCE;
+  public final com.mapconductor.core.controller.OverlayStacking$Key key(com.mapconductor.core.controller.OverlayKind, int);
+  public final com.mapconductor.core.controller.OverlayStacking$Key getMARKER_TILE();
+  public final com.mapconductor.core.controller.OverlayStacking$Key getPOLYGON_TILE();
+  public final void add(com.maptiler.maptilersdk.map.style.MTStyle, com.maptiler.maptilersdk.map.style.layer.MTLayer, com.mapconductor.core.controller.OverlayStacking$Key);
+  public final void remove(com.maptiler.maptilersdk.map.style.MTStyle, java.lang.String);
+  public final void onIdle(com.maptiler.maptilersdk.map.style.MTStyle);
+  public final void reset(com.maptiler.maptilersdk.map.style.MTStyle);
+}
+final class com.mapconductor.maptiler.MapTilerOverlayStacking$Entry {
+  public final java.lang.String getId();
+  public final com.mapconductor.core.controller.OverlayStacking$Key getKey();
+}
 public final class com.mapconductor.maptiler.MapTilerProjectedAnnotationKt {
   public static final void MapTilerProjectedAnnotation(com.maptiler.maptilersdk.map.MTMapViewController, com.maptiler.maptilersdk.map.LngLat, com.maptiler.maptilersdk.map.types.MTPoint, androidx.compose.ui.Alignment, androidx.compose.ui.Modifier, kotlin.jvm.functions.Function2<? super androidx.compose.runtime.Composer, ? super java.lang.Integer, kotlin.Unit>, androidx.compose.runtime.Composer, int, int);
 }

@@ -343,6 +343,9 @@ class MapTilerMapViewController(
     }
 
     override suspend fun clearOverlays() {
+        // オーバーレイ経路のマーカー（MapTilerMarkerOverlay で描くもの）。Longdo と同じく
+        // 一覧を空にすれば Compose 側が外す。これが無いとタイル経路でないマーカーが残っていた。
+        _markers.value = emptyList()
         rasterLayerController.clear()
         polylineController.clear()
         polygonController.clear()
@@ -351,6 +354,8 @@ class MapTilerMapViewController(
         markerRasterId?.let { rasterLayerController.removeById(it) }
         markerRasterId = null
         markerTileRenderer?.clear()
+        // 拡張モジュール（クラスタリングなど）が登録した Strategy のマーカーも消す。
+        clearStrategyMarkerControllers()
     }
 
     override fun destroy() {

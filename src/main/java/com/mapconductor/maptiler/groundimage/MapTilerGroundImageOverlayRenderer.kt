@@ -1,12 +1,14 @@
 package com.mapconductor.maptiler.groundimage
 
+import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.features.GeoRectBounds
 import com.mapconductor.core.groundimage.GroundImageEntityInterface
 import com.mapconductor.core.groundimage.GroundImageOverlayRendererInterface
 import com.mapconductor.core.groundimage.GroundImageState
+import com.mapconductor.maptiler.MapTilerOverlayStacking
 import com.mapconductor.maptiler.awaitPageLayers
-import com.mapconductor.maptiler.removeOwnedLayer
-import com.mapconductor.maptiler.removeOwnedSource
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.LngLat
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
@@ -67,14 +69,21 @@ class MapTilerGroundImageOverlayRenderer(
         val style = mtController.style ?: return
         handles.forEach { handle ->
             runCatching { style.addSource(handle.source) }
-            runCatching { style.addLayer(handle.layer) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.layer, stackKey(handle.layer.identifier)) }
         }
     }
+
+    /** 層の id → zIndex（帯の中の順）。handle は公開型なので持たせずここで覚える。 */
+    private val zIndexByLayer = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** GroundImage の帯（ラスターの上、ポリゴンの下）。 */
+    private fun stackKey(layerId: String) = MapTilerOverlayStacking.key(OverlayKind.GroundImage, zIndexByLayer[layerId] ?: 0)
 
     private fun addGroundImage(state: GroundImageState): MapTilerGroundImageHandle? {
         val coordinates = state.bounds.toImageCoordinates() ?: return null
         val sourceId = "groundimage-source-${state.id}"
         val layerId = "groundimage-layer-${state.id}"
+        zIndexByLayer[layerId] = 0
         val source = MTImageSource(sourceId, imageUrl(state.image), coordinates)
         val layer =
             MTRasterLayer(layerId, sourceId).apply {
@@ -96,7 +105,7 @@ class MapTilerGroundImageOverlayRenderer(
         val style = mtController.style ?: return handle
         runCatching { style.addSource(source) }
             .onFailure { Log.w(TAG, "addSource failed: ${it.message}") }
-        runCatching { style.addLayer(layer) }
+        runCatching { MapTilerOverlayStacking.add(style, layer, stackKey(layer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer failed: ${it.message}") }
         return handle
     }
@@ -143,8 +152,10 @@ class MapTilerGroundImageOverlayRenderer(
     private fun removeGroundImage(entity: GroundImageEntityInterface<MapTilerGroundImageHandle>) {
         val style = mtController.style ?: return
         val handle = entity.groundImage
-        style.removeOwnedLayer(handle.layer)
-        style.removeOwnedSource(handle.source)
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        MapTilerOverlayStacking.remove(style, handle.layer.identifier)
+        style.removeLayerAndForget(handle.layer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**
