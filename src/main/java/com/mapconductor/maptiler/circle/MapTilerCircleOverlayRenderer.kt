@@ -8,6 +8,7 @@ import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.geometry.OverlayGeoJson
 import com.mapconductor.core.geometry.circleToRing
 import com.mapconductor.maptiler.MapTilerOverlayStacking
+import com.mapconductor.maptiler.awaitPageLayers
 import com.mapconductor.maptiler.removeLayerAndForget
 import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
@@ -34,9 +35,19 @@ import android.util.Log
 class MapTilerCircleOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : CircleOverlayRendererInterface<MapTilerCircleHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the circles'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<CircleOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerCircleHandle?> = data.map { addCircle(it.state) }
+    ): List<MapTilerCircleHandle?> {
+        val handles = data.map { addCircle(it.state) }
+        if (mtController.style != null) {
+            mtController.awaitPageLayers(handles.filterNotNull().flatMap { listOf(it.fillLayerId, it.lineLayerId) })
+        }
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<CircleOverlayRendererInterface.ChangeParamsInterface<MapTilerCircleHandle>>,

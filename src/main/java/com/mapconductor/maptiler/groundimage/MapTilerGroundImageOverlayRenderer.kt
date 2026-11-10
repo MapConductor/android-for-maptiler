@@ -6,6 +6,7 @@ import com.mapconductor.core.groundimage.GroundImageEntityInterface
 import com.mapconductor.core.groundimage.GroundImageOverlayRendererInterface
 import com.mapconductor.core.groundimage.GroundImageState
 import com.mapconductor.maptiler.MapTilerOverlayStacking
+import com.mapconductor.maptiler.awaitPageLayers
 import com.mapconductor.maptiler.removeLayerAndForget
 import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.LngLat
@@ -36,9 +37,17 @@ import android.util.Log
 class MapTilerGroundImageOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : GroundImageOverlayRendererInterface<MapTilerGroundImageHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the ground images'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<GroundImageOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerGroundImageHandle?> = data.map { addGroundImage(it.state) }
+    ): List<MapTilerGroundImageHandle?> {
+        val handles = data.map { addGroundImage(it.state) }
+        if (mtController.style != null) mtController.awaitPageLayers(handles.mapNotNull { it?.layerId })
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<GroundImageOverlayRendererInterface.ChangeParamsInterface<MapTilerGroundImageHandle>>,

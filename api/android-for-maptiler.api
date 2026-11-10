@@ -170,6 +170,7 @@ public final class com.mapconductor.maptiler.MapTilerOverlayStacking {
   public final com.mapconductor.core.controller.OverlayStacking$Key key(com.mapconductor.core.controller.OverlayKind, int);
   public final com.mapconductor.core.controller.OverlayStacking$Key getMARKER_TILE();
   public final com.mapconductor.core.controller.OverlayStacking$Key getPOLYGON_TILE();
+  public final com.mapconductor.core.controller.OverlayStacking$Key getPOLYLINE_TILE();
   public final void add(com.maptiler.maptilersdk.map.style.MTStyle, com.maptiler.maptilersdk.map.style.layer.MTLayer, com.mapconductor.core.controller.OverlayStacking$Key);
   public final void remove(com.maptiler.maptilersdk.map.style.MTStyle, java.lang.String);
   public final void onIdle(com.maptiler.maptilersdk.map.style.MTStyle);
@@ -199,6 +200,23 @@ public final class com.mapconductor.maptiler.MapTilerViewStateImplKt {
   public static final com.mapconductor.maptiler.MapTilerViewState rememberMapTilerMapViewState(com.mapconductor.maptiler.MapTilerMapDesignTypeInterface, com.mapconductor.core.map.MapCameraPositionInterface, androidx.compose.runtime.Composer, int, int);
 }
 public interface com.mapconductor.maptiler.MapTilerViewStateInterface extends com.mapconductor.core.map.MapViewStateInterface<com.mapconductor.maptiler.MapTilerMapDesignTypeInterface> {
+}
+public final class com.mapconductor.maptiler.PageLayerWait {
+  public static final com.mapconductor.maptiler.PageLayerWait INSTANCE;
+  public static final java.lang.String MAP_EXPR;
+  public static final long TIMEOUT_MS;
+  public static final long INTERVAL_MS;
+  public final java.lang.String script(java.util.List<java.lang.String>);
+  public final int parse(java.lang.String);
+  public final java.lang.Object await(java.util.List<java.lang.String>, long, long, kotlin.jvm.functions.Function2<? super java.lang.String, ? super kotlin.coroutines.Continuation<? super java.lang.String>, ? extends java.lang.Object>, kotlin.coroutines.Continuation<? super java.lang.Boolean>);
+}
+public final class com.mapconductor.maptiler.PageLayerWaitKt {
+  public static final java.lang.Object awaitPageLayers(com.maptiler.maptilersdk.map.MTMapViewController, java.util.List<java.lang.String>, kotlin.coroutines.Continuation<? super java.lang.Boolean>);
+}
+final class com.mapconductor.maptiler.PageScript implements com.maptiler.maptilersdk.bridge.MTCommand {
+  public com.mapconductor.maptiler.PageScript(java.lang.String);
+  public boolean isPrimitiveReturnType();
+  public java.lang.String toJS();
 }
 public final class com.mapconductor.maptiler.circle.MapTilerCircleController extends com.mapconductor.core.circle.CircleController<com.mapconductor.maptiler.circle.MapTilerCircleHandle> {
   public com.mapconductor.maptiler.circle.MapTilerCircleController(com.mapconductor.maptiler.circle.MapTilerCircleOverlayRenderer, com.mapconductor.core.circle.CircleManagerInterface<com.mapconductor.maptiler.circle.MapTilerCircleHandle>);
@@ -312,6 +330,10 @@ public final class com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer {
   public final com.mapconductor.core.marker.MarkerState findMarkerAt(com.mapconductor.core.features.GeoPointInterface, double);
 }
 final class com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer$Companion {
+}
+public final class com.mapconductor.maptiler.marker.MarkerIdIndex {
+  public com.mapconductor.maptiler.marker.MarkerIdIndex();
+  public final synchronized boolean contains(java.util.List<com.mapconductor.core.marker.MarkerState>, java.lang.String);
 }
 public final class com.mapconductor.maptiler.polygon.MapTilerPolygonController extends com.mapconductor.core.polygon.PolygonController<com.mapconductor.maptiler.polygon.MapTilerPolygonHandle> {
   public com.mapconductor.maptiler.polygon.MapTilerPolygonController(com.mapconductor.maptiler.polygon.MapTilerPolygonOverlayRenderer, com.mapconductor.core.polygon.PolygonManagerInterface<com.mapconductor.maptiler.polygon.MapTilerPolygonHandle>);

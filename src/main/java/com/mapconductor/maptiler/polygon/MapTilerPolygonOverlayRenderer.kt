@@ -9,6 +9,7 @@ import com.mapconductor.core.polygon.PolygonOverlayRendererInterface
 import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polygon.unionHoles
 import com.mapconductor.maptiler.MapTilerOverlayStacking
+import com.mapconductor.maptiler.awaitPageLayers
 import com.mapconductor.maptiler.removeLayerAndForget
 import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
@@ -34,9 +35,19 @@ import android.util.Log
 class MapTilerPolygonOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : PolygonOverlayRendererInterface<MapTilerPolygonHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the polygons'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<PolygonOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerPolygonHandle?> = data.map { addPolygon(it.state) }
+    ): List<MapTilerPolygonHandle?> {
+        val handles = data.map { addPolygon(it.state) }
+        if (mtController.style != null) {
+            mtController.awaitPageLayers(handles.filterNotNull().flatMap { listOf(it.fillLayerId, it.lineLayerId) })
+        }
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<PolygonOverlayRendererInterface.ChangeParamsInterface<MapTilerPolygonHandle>>,

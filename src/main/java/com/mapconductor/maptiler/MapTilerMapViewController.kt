@@ -22,8 +22,11 @@ import com.mapconductor.core.polygon.PolygonCapableInterface
 import com.mapconductor.core.polygon.PolygonTiler
 import com.mapconductor.core.polygon.polygonTileRasterLayerState
 import com.mapconductor.core.polyline.OnPolylineEventHandler
+import com.mapconductor.core.polyline.POLYLINE_TILE_LAYER_ID
 import com.mapconductor.core.polyline.PolylineCapableInterface
 import com.mapconductor.core.polyline.PolylineState
+import com.mapconductor.core.polyline.PolylineTiler
+import com.mapconductor.core.polyline.polylineTileRasterLayerState
 import com.mapconductor.core.raster.RasterLayerCapableInterface
 import com.mapconductor.core.raster.RasterLayerState
 import com.mapconductor.maptiler.circle.MapTilerCircleController
@@ -31,6 +34,7 @@ import com.mapconductor.maptiler.circle.MapTilerCircleOverlayRenderer
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageController
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageOverlayRenderer
 import com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer
+import com.mapconductor.maptiler.marker.MarkerIdIndex
 import com.mapconductor.maptiler.polygon.MapTilerPolygonController
 import com.mapconductor.maptiler.polygon.MapTilerPolygonOverlayRenderer
 import com.mapconductor.maptiler.polyline.MapTilerPolylineController
@@ -206,8 +210,11 @@ class MapTilerMapViewController(
     }
 
     override fun hasMarker(state: MarkerState): Boolean =
-        _markers.value.any { it.id == state.id } ||
-            (markerTileRenderer?.markers?.any { it.id == state.id } ?: false)
+        overlayMarkerIds.contains(_markers.value, state.id) ||
+            (markerTileRenderer?.markers?.let { tiledMarkerIds.contains(it, state.id) } ?: false)
+
+    private val tiledMarkerIds = MarkerIdIndex()
+    private val overlayMarkerIds = MarkerIdIndex()
 
     // --- Marker clustering (android-marker-clustering) 連携 ---
 
@@ -329,6 +336,18 @@ class MapTilerMapViewController(
                         rasterLayerController.upsert(polygonTileRasterLayerState(template, tileSize))
                     } else {
                         rasterLayerController.removeById(POLYGON_TILE_LAYER_ID)
+                    }
+                }
+            }
+
+        // Many polylines too: the same raster layer path, in the polyline band.
+        polylineController.tiler =
+            PolylineTiler().apply {
+                onTemplate = { template, tileSize ->
+                    if (template != null) {
+                        rasterLayerController.upsert(polylineTileRasterLayerState(template, tileSize))
+                    } else {
+                        rasterLayerController.removeById(POLYLINE_TILE_LAYER_ID)
                     }
                 }
             }
