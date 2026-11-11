@@ -44,6 +44,7 @@ import com.mapconductor.core.map.VectorStyleAsDesign
 import com.mapconductor.core.map.VectorStyleMutationSupportKey
 import com.mapconductor.core.map.VectorStyleSupportKey
 import com.mapconductor.core.map.applyStyleMutations
+import com.mapconductor.core.marker.MarkerDrawOrder
 import com.mapconductor.core.marker.MarkerRenderingSupportKey
 import com.mapconductor.core.marker.MarkerTilingOptions
 import com.maptiler.maptilersdk.events.MTEvent
@@ -427,7 +428,9 @@ fun MapTilerMapSurface(
             )
 
             if (mapReady) {
-                markers.forEach { markerState ->
+                // 後に置いたものほど上に描かれる。zIndex が大きいほど、同じなら南・西ほど上
+                // （[MarkerDrawOrder]）。足した順には任せない。
+                markers.sortedBy { MarkerDrawOrder.of(it.zIndex, it.position) }.forEach { markerState ->
                     key(markerState.id) {
                         MapTilerMarkerOverlay(mtController, markerState)
                     }
