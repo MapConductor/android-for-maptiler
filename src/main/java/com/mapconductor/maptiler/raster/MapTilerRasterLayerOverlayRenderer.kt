@@ -2,6 +2,7 @@ package com.mapconductor.maptiler.raster
 
 import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.polygon.POLYGON_TILE_LAYER_ID
+import com.mapconductor.core.circle.CIRCLE_TILE_LAYER_ID
 import com.mapconductor.core.polyline.POLYLINE_TILE_LAYER_ID
 import com.mapconductor.core.raster.RasterHeaderRuleSet
 import com.mapconductor.core.raster.RasterLayerEntityInterface
@@ -120,6 +121,8 @@ class MapTilerRasterLayerOverlayRenderer(
             MapTilerOverlayStacking.MARKER_TILE
         } else if (layerId.startsWith("raster-layer-$POLYGON_TILE_LAYER_ID")) {
             MapTilerOverlayStacking.POLYGON_TILE
+        } else if (layerId.startsWith("raster-layer-$CIRCLE_TILE_LAYER_ID")) {
+            MapTilerOverlayStacking.CIRCLE_TILE
         } else if (layerId.startsWith("raster-layer-$POLYLINE_TILE_LAYER_ID")) {
             MapTilerOverlayStacking.POLYLINE_TILE
         } else {
