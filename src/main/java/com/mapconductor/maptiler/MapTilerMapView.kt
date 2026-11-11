@@ -47,6 +47,7 @@ import com.mapconductor.core.map.applyStyleMutations
 import com.mapconductor.core.marker.MarkerDrawOrder
 import com.mapconductor.core.marker.MarkerRenderingSupportKey
 import com.mapconductor.core.marker.MarkerTilingOptions
+import com.mapconductor.core.marker.rememberMarkerDrawOrderFrame
 import com.maptiler.maptilersdk.events.MTEvent
 import com.maptiler.maptilersdk.map.MTMapOptions
 import com.maptiler.maptilersdk.map.MTMapView
@@ -427,10 +428,12 @@ fun MapTilerMapSurface(
                 styleVariant = design.variant,
             )
 
+            // 地図が回って止まったら、同じ zIndex の前後を画面の上下で並べ直す。
+            val drawOrderFrame = rememberMarkerDrawOrderFrame { state.cameraPosition }
             if (mapReady) {
-                // 後に置いたものほど上に描かれる。zIndex が大きいほど、同じなら南・西ほど上
+                // 後に置いたものほど上に描かれる。zIndex が大きいほど、同じなら画面で下ほど上
                 // （[MarkerDrawOrder]）。足した順には任せない。
-                markers.sortedBy { MarkerDrawOrder.of(it.zIndex, it.position) }.forEach { markerState ->
+                markers.sortedBy { MarkerDrawOrder.of(it.zIndex, it.position, drawOrderFrame) }.forEach { markerState ->
                     key(markerState.id) {
                         MapTilerMarkerOverlay(mtController, markerState)
                     }
