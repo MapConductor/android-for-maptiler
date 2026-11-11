@@ -18,6 +18,6 @@ class MapTilerCircleController(
      * 既知の円を再適用する（地図 `ready` 後の復元用）。
      */
     fun reapply() {
-        renderer.reapply(circleManager.allEntities().map { it.circle })
+        renderer.reapply(circleManager.nativeEntities().mapNotNull { it.circle })
     }
 }
