@@ -115,8 +115,11 @@ public final class com.mapconductor.maptiler.MapTilerMapViewController extends c
 public final class com.mapconductor.maptiler.MapTilerMapViewController$Companion {
 }
 public final class com.mapconductor.maptiler.MapTilerMapViewControllerCameraKt {
+  public static final double MAPTILER_VERTICAL_FOV;
   public static final java.lang.Object currentCameraWithRegion(com.mapconductor.maptiler.MapTilerMapViewController, kotlin.coroutines.Continuation<? super com.mapconductor.core.map.MapCameraPosition>);
   public static final com.mapconductor.core.map.MapCameraPosition recoverLogicalCameraPosition(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.map.MapCameraPosition);
+  public static final double viewportHeightDp(com.mapconductor.maptiler.MapTilerMapViewController);
+  public static final com.mapconductor.core.map.MapCameraPosition toNativeCamera(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.map.MapCameraPosition);
   public static final void handleMoveCamera(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.map.MapCameraPosition);
   public static final void handleAnimateCamera(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.map.MapCameraPosition, long);
   public static final void handleFitBounds(com.mapconductor.maptiler.MapTilerMapViewController, com.mapconductor.core.features.GeoRectBounds, int);

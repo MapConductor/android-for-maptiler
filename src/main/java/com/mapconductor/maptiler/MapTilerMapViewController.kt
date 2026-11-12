@@ -12,7 +12,10 @@ import com.mapconductor.core.groundimage.GroundImageCapableInterface
 import com.mapconductor.core.groundimage.GroundImageState
 import com.mapconductor.core.groundimage.OnGroundImageEventHandler
 import com.mapconductor.core.map.CameraRestriction
+import com.mapconductor.core.map.CameraPaddingEmulation
 import com.mapconductor.core.map.MapCameraPosition
+import com.mapconductor.core.map.MapPaddings
+import com.mapconductor.core.map.MapPaddingsInterface
 import com.mapconductor.core.map.MapUISettings
 import com.mapconductor.core.marker.MarkerCapableInterface
 import com.mapconductor.core.marker.MarkerRenderingSupport
@@ -97,6 +100,15 @@ class MapTilerMapViewController(
      * ため、カメラ状態の読み戻し時に元の負tilt を復元するヒントとして保持する（MapLibre と同方針）。
      */
     internal var lastLogicalCameraPosition: MapCameraPosition? = null
+
+    /**
+     * 今カメラに付いているパディング（dp）。
+     *
+     * `MTMapViewController.setPadding` は使わない。カメラのオプションに載らず、付けた瞬間に
+     * 画面がずれて flyTo の始まりが跳ぶため。代わりにカメラ中心をずらして再現し
+     * （[CameraPaddingEmulation]）、読むときに元へ戻すためにここで覚えておく。
+     */
+    internal var cameraPaddings: MapPaddingsInterface = MapPaddings.Zeros
 
     /** マーカータイリング設定。null は [MarkerTilingOptions.Default] と同じ。 */
     var markerTilingOptions: MarkerTilingOptions? = null

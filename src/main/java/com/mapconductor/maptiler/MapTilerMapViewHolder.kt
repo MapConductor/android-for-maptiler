@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.IntSize
 import com.mapconductor.core.ResourceProvider
 import com.mapconductor.core.features.GeoPoint
 import com.mapconductor.core.features.GeoPointInterface
+import com.mapconductor.core.map.CameraPaddingEmulation
 import com.mapconductor.core.map.MapCameraPosition
 import com.mapconductor.core.map.MapViewHolderInterface
 import com.mapconductor.core.projection.WebMercatorScreenProjection
@@ -41,6 +42,15 @@ class MapTilerMapViewHolder(
     internal var viewportSizeProvider: (() -> IntSize?)? = null
 
     /**
+     * 投影の中心にするカメラ。パディングを付けたカメラの position はパディング中央なので、
+     * 画面中央に来る点（ネイティブへ渡したカメラ中心）へ戻してから使う。
+     */
+    private fun screenCenteredCamera(heightDp: Float): MapCameraPosition? {
+        val camera = cameraProvider?.invoke() ?: return null
+        return CameraPaddingEmulation.toNativeCamera(camera, MAPTILER_VERTICAL_FOV, heightDp.toDouble())
+    }
+
+    /**
      * 地理座標 → 画面座標（**端末ピクセル**）。カメラかビューの大きさが未確定なら null。
      *
      * ホルダーの契約は端末ピクセル（MapLibre 等の `toScreenLocation` に合わせている）。
@@ -49,9 +59,9 @@ class MapTilerMapViewHolder(
      * 中心からのずれが density 分だけ小さくなり、マーカーと吹き出しがずれる。
      */
     override fun toScreenOffset(position: GeoPointInterface): Offset? {
-        val camera = cameraProvider?.invoke() ?: return null
         val size = viewportSizeProvider?.invoke() ?: return null
         val density = ResourceProvider.getDensity()
+        val camera = screenCenteredCamera(size.height / density) ?: return null
         val offsetDp =
             WebMercatorScreenProjection.toScreenOffset(
                 position = position,
@@ -77,9 +87,9 @@ class MapTilerMapViewHolder(
      * 画面座標 → 地理座標（同期）。ブリッジの応答を待てない場所で使う。
      */
     override fun fromScreenOffsetSync(offset: Offset): GeoPoint? {
-        val camera = cameraProvider?.invoke() ?: return null
         val size = viewportSizeProvider?.invoke() ?: return null
         val density = ResourceProvider.getDensity()
+        val camera = screenCenteredCamera(size.height / density) ?: return null
         return WebMercatorScreenProjection.fromScreenOffset(
             offset = Offset(offset.x / density, offset.y / density),
             camera = camera,
