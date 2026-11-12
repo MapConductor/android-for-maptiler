@@ -20,7 +20,8 @@ import com.maptiler.maptilersdk.map.types.MTPoint
  *
  * ブリッジは**同期**の座標変換 API を持たない（`project` / `unproject` は suspend）。
  * しかし MapTiler の既定スタイルは Web Mercator なので、投影はカメラとビューの大きさだけで
- * 決まる。式はコアの [WebMercatorScreenProjection] にあり、ここはカメラとサイズを渡すだけ。
+ * 決まる。式はコアの [WebMercatorScreenProjection] にあり、ここはカメラとサイズと視野角を渡すだけ。
+ * 視野角を渡すので tilt も透視で扱う（渡さないと奥ほどずれ、tilt 60 で 250px 近くずれていた）。
  * **各所で式を書き直さないこと。** android-for-longdo の [LongdoMapViewHolder] と同じ扱い。
  */
 class MapTilerMapViewHolder(
@@ -68,6 +69,7 @@ class MapTilerMapViewHolder(
                 camera = camera,
                 widthPx = size.width / density,
                 heightPx = size.height / density,
+                fovDegrees = MAPTILER_VERTICAL_FOV,
             ) ?: return null
         return Offset(offsetDp.x * density, offsetDp.y * density)
     }
@@ -95,6 +97,7 @@ class MapTilerMapViewHolder(
             camera = camera,
             widthPx = size.width / density,
             heightPx = size.height / density,
+            fovDegrees = MAPTILER_VERTICAL_FOV,
         )
     }
 }
