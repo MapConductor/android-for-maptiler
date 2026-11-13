@@ -146,6 +146,9 @@ public final class com.mapconductor.maptiler.MapTilerMapViewHolder implements co
   public androidx.compose.ui.geometry.Offset toScreenOffset-x-9fifI(com.mapconductor.core.features.GeoPointInterface);
   public java.lang.Object fromScreenOffset-3MmeM6k(long, kotlin.coroutines.Continuation<? super com.mapconductor.core.features.GeoPoint>);
   public com.mapconductor.core.features.GeoPoint fromScreenOffsetSync-k-4lQ0M(long);
+  public com.mapconductor.core.projection.ProjectedPoint toProjectedPoint(com.mapconductor.core.features.GeoPointInterface);
+  public com.mapconductor.core.features.GeoPoint fromProjectedPoint(com.mapconductor.core.projection.ProjectedPoint);
+  public com.mapconductor.core.projection.MapCoordinateSystem getCoordinateSystem();
   public java.lang.Object getMapView();
   public java.lang.Object getMap();
 }
@@ -173,6 +176,7 @@ public final class com.mapconductor.maptiler.MapTilerOverlayStacking {
   public final com.mapconductor.core.controller.OverlayStacking$Key key(com.mapconductor.core.controller.OverlayKind, int);
   public final com.mapconductor.core.controller.OverlayStacking$Key getMARKER_TILE();
   public final com.mapconductor.core.controller.OverlayStacking$Key getPOLYGON_TILE();
+  public final com.mapconductor.core.controller.OverlayStacking$Key getCIRCLE_TILE();
   public final com.mapconductor.core.controller.OverlayStacking$Key getPOLYLINE_TILE();
   public final void add(com.maptiler.maptilersdk.map.style.MTStyle, com.maptiler.maptilersdk.map.style.layer.MTLayer, com.mapconductor.core.controller.OverlayStacking$Key);
   public final void remove(com.maptiler.maptilersdk.map.style.MTStyle, java.lang.String);
