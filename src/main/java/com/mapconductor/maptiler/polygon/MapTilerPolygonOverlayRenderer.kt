@@ -1,12 +1,17 @@
 package com.mapconductor.maptiler.polygon
 
 import androidx.compose.ui.graphics.toArgb
+import com.mapconductor.core.controller.OverlayKind
 import com.mapconductor.core.geometry.OverlayGeoJson
 import com.mapconductor.core.geometry.buildUnwrappedPolygonRings
 import com.mapconductor.core.polygon.PolygonEntityInterface
 import com.mapconductor.core.polygon.PolygonOverlayRendererInterface
 import com.mapconductor.core.polygon.PolygonState
 import com.mapconductor.core.polygon.unionHoles
+import com.mapconductor.maptiler.MapTilerOverlayStacking
+import com.mapconductor.maptiler.awaitPageLayers
+import com.mapconductor.maptiler.removeLayerAndForget
+import com.mapconductor.maptiler.removeSourceAndForget
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.style.dsl.PropertyValue
 import com.maptiler.maptilersdk.map.style.layer.MTLayerVisibility
@@ -30,9 +35,19 @@ import android.util.Log
 class MapTilerPolygonOverlayRenderer(
     private val mtController: MTMapViewController,
 ) : PolygonOverlayRendererInterface<MapTilerPolygonHandle> {
+    /**
+     * Returns once the layers are on the page's map, so the polygons'
+     * `onAdded` comes after they are (see [com.mapconductor.maptiler.PageLayerWait]).
+     */
     override suspend fun onAdd(
         data: List<PolygonOverlayRendererInterface.AddParamsInterface>,
-    ): List<MapTilerPolygonHandle?> = data.map { addPolygon(it.state) }
+    ): List<MapTilerPolygonHandle?> {
+        val handles = data.map { addPolygon(it.state) }
+        if (mtController.style != null) {
+            mtController.awaitPageLayers(handles.filterNotNull().flatMap { listOf(it.fillLayerId, it.lineLayerId) })
+        }
+        return handles
+    }
 
     override suspend fun onChange(
         data: List<PolygonOverlayRendererInterface.ChangeParamsInterface<MapTilerPolygonHandle>>,
@@ -71,16 +86,24 @@ class MapTilerPolygonOverlayRenderer(
         val style = mtController.style ?: return
         handles.forEach { handle ->
             runCatching { style.addSource(handle.source) }
-            runCatching { style.addLayer(handle.fillLayer) }
-            runCatching { style.addLayer(handle.lineLayer) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.fillLayer, stackKey(handle.fillLayer.identifier)) }
+            runCatching { MapTilerOverlayStacking.add(style, handle.lineLayer, stackKey(handle.lineLayer.identifier)) }
         }
     }
+
+    /** 層の id → zIndex（帯の中の順）。handle は公開型なので持たせずここで覚える。 */
+    private val zIndexByLayer = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** ポリゴンの帯。同じ鍵なら後から足したもの（輪郭）が上。 */
+    private fun stackKey(layerId: String) = MapTilerOverlayStacking.key(OverlayKind.Polygon, zIndexByLayer[layerId] ?: 0)
 
     private fun addPolygon(state: PolygonState): MapTilerPolygonHandle? {
         val json = buildGeoJson(state) ?: return null
         val sourceId = "polygon-source-${state.id}"
         val fillLayerId = "polygon-fill-${state.id}"
         val lineLayerId = "polygon-line-${state.id}"
+        zIndexByLayer[fillLayerId] = state.zIndex
+        zIndexByLayer[lineLayerId] = state.zIndex
         val source = MTGeoJSONSource.fromJsonString(sourceId, json)
 
         val fillLayer =
@@ -105,9 +128,9 @@ class MapTilerPolygonOverlayRenderer(
         // ソース → 塗り → 輪郭の順に追加（輪郭を塗りの上に重ねる）。
         runCatching { style.addSource(source) }
             .onFailure { Log.w(TAG, "addSource failed: ${it.message}") }
-        runCatching { style.addLayer(fillLayer) }
+        runCatching { MapTilerOverlayStacking.add(style, fillLayer, stackKey(fillLayer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer(fill) failed: ${it.message}") }
-        runCatching { style.addLayer(lineLayer) }
+        runCatching { MapTilerOverlayStacking.add(style, lineLayer, stackKey(lineLayer.identifier)) }
             .onFailure { Log.w(TAG, "addLayer(line) failed: ${it.message}") }
         return handle
     }
@@ -164,9 +187,12 @@ class MapTilerPolygonOverlayRenderer(
     private fun removePolygon(entity: PolygonEntityInterface<MapTilerPolygonHandle>) {
         val style = mtController.style ?: return
         val handle = entity.polygon
-        runCatching { style.removeLayerById(handle.lineLayerId) }
-        runCatching { style.removeLayerById(handle.fillLayerId) }
-        runCatching { style.removeSourceById(handle.sourceId) }
+        // id で外すと MTStyle の記録が残り、同じ id で戻せなくなる（MapTilerStyleRemoval.kt）。
+        MapTilerOverlayStacking.remove(style, handle.lineLayer.identifier)
+        style.removeLayerAndForget(handle.lineLayer)
+        MapTilerOverlayStacking.remove(style, handle.fillLayer.identifier)
+        style.removeLayerAndForget(handle.fillLayer)
+        style.removeSourceAndForget(handle.source)
     }
 
     /**

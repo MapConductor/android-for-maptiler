@@ -39,14 +39,12 @@ internal suspend fun MapTilerMapViewController.renderTiledMarkers(data: List<Mar
  * 流さない（他プロバイダと同じ）。
  *
  * @param point タップ座標。
- * @param nativeZoom MapTiler ネイティブズーム。
  * @return マーカーがタップを消費したら true。
  */
 internal fun MapTilerMapViewController.handleMarkerTap(
     point: GeoPoint,
-    nativeZoom: Double,
 ): Boolean {
-    val state = markerTileRenderer?.findMarkerAt(point, nativeZoom) ?: return false
+    val state = markerTileRenderer?.findMarkerAt(point, holder::toScreenOffset) ?: return false
     // clickable = false のマーカーは透過させる（コアの clickableOnly と同じ方針）。
     if (!state.clickable) return false
     state.onClick?.invoke(state)

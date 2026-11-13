@@ -31,19 +31,31 @@ import com.mapconductor.core.OnCameraMoveHandler
 import com.mapconductor.core.OnMapEventHandler
 import com.mapconductor.core.OnMapLoadedHandler
 import com.mapconductor.core.ResourceProvider
+import com.mapconductor.core.map.CameraBearing
 import com.mapconductor.core.map.CameraRestriction
 import com.mapconductor.core.map.LocalMapOverlayRegistry
 import com.mapconductor.core.map.LocalMapServiceRegistry
 import com.mapconductor.core.map.LocalMapViewController
 import com.mapconductor.core.map.MapCameraPosition
+import com.mapconductor.core.map.MapViewStyle
+import com.mapconductor.core.map.MapViewStyleEffect
+import com.mapconductor.core.map.StyleMutationStore
+import com.mapconductor.core.map.VectorStyleAsDesign
+import com.mapconductor.core.map.VectorStyleMutationSupportKey
+import com.mapconductor.core.map.VectorStyleSupportKey
+import com.mapconductor.core.map.applyStyleMutations
+import com.mapconductor.core.marker.MarkerDrawOrder
 import com.mapconductor.core.marker.MarkerRenderingSupportKey
 import com.mapconductor.core.marker.MarkerTilingOptions
+import com.mapconductor.core.marker.rememberMarkerDrawOrderFrame
 import com.maptiler.maptilersdk.events.MTEvent
 import com.maptiler.maptilersdk.map.MTMapOptions
 import com.maptiler.maptilersdk.map.MTMapView
 import com.maptiler.maptilersdk.map.MTMapViewController
 import com.maptiler.maptilersdk.map.MTMapViewDelegate
+import com.maptiler.maptilersdk.map.style.MTMapReferenceStyle
 import com.maptiler.maptilersdk.map.types.MTData
+import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 
@@ -73,6 +85,15 @@ fun MapTilerMapView(
     onCameraMoveStart: OnCameraMoveHandler? = null,
     onCameraMove: OnCameraMoveHandler? = null,
     onCameraMoveEnd: OnCameraMoveHandler? = null,
+    /**
+     * How the map looks, when the app states it rather than naming a design.
+     *
+     * A vector style *is* the basemap. `com.mapconductor:vectorstyle` builds
+     * one; what happens underneath depends on this backend and the app does
+     * not have to know.
+     */
+    style: MapViewStyle? = null,
+    onStyleDiagnostics: ((List<String>) -> Unit)? = null,
     content: (@Composable MapViewScope.() -> Unit)? = null,
 ) {
     MapTilerMapSurface(
@@ -86,6 +107,8 @@ fun MapTilerMapView(
         onCameraMoveStart = onCameraMoveStart,
         onCameraMove = onCameraMove,
         onCameraMoveEnd = onCameraMoveEnd,
+        style = style,
+        onStyleDiagnostics = onStyleDiagnostics,
         content = content,
     )
 }
@@ -116,6 +139,15 @@ fun MapTilerMapSurface(
     onCameraMove: OnCameraMoveHandler? = null,
     onCameraMoveEnd: OnCameraMoveHandler? = null,
     onControllerReady: ((MapTilerMapViewController) -> Unit)? = null,
+    /**
+     * How the map looks, when the app states it rather than naming a design.
+     *
+     * A vector style *is* the basemap. `com.mapconductor:vectorstyle` builds
+     * one; what happens underneath depends on this backend and the app does
+     * not have to know.
+     */
+    style: MapViewStyle? = null,
+    onStyleDiagnostics: ((List<String>) -> Unit)? = null,
     content: (@Composable MapViewScope.() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -126,6 +158,63 @@ fun MapTilerMapSurface(
     }
 
     val design = state.mapDesignType
+
+    // MapTiler は MapLibre GL そのものなので、スタイルは渡せばそのまま描ける。
+    // `key(design.id)` の**外**に置く: 中に置くと、デザイン切替のたびに
+    // 「新しい合成の put → 古い合成の onDispose で remove」の順で走り、
+    // 登録が消える。スタイル切替はまさにこの capability が起こす。
+    // 同じ理由で、スタイルを「その場で」書き換える capability も `key(design.id)` の外。
+    // こちらが登録されていれば `VectorStyle` はデザイン差し替え（= WebView 作り直し）を
+    // せずルールだけ送る。コントローラは `key` の中で作り直されるので、スタイルは箱越しに
+    // 読む — 古い `MTStyle` を掴んだままだと、地図が捨てたスタイルに書き込むことになる。
+    val liveController = remember(state) { mutableStateOf<MTMapViewController?>(null) }
+    // コントローラも同じ理由で箱越し。スタイルの設置を `key` の中で呼ぶと、
+    // デザイン切替ごとに dispose → install が走り、設置がデザインを変えるので止まらない。
+    val liveMapController = remember(state) { mutableStateOf<MapTilerMapViewController?>(null) }
+    val mutations =
+        remember(state) {
+            StyleMutationStore { list ->
+                applyStyleMutations(
+                    MapTilerStyleMutationTarget { liveController.value?.style },
+                    list,
+                )
+            }
+        }
+
+    DisposableEffect(state) {
+        state.serviceRegistry.put(
+            VectorStyleSupportKey,
+            VectorStyleAsDesign(
+                state,
+                // CUSTOM(URL) 以外は MapTiler クラウドの名前付きスタイルで、
+                // キーが要るので取りに行けない。null を返して「調整するものが
+                // 無い」と言わせる。
+                urlOf = { design ->
+                    (design.referenceStyle as? MTMapReferenceStyle.CUSTOM)?.url?.toString()
+                },
+            ) { url, rules ->
+                MapTilerDesign(
+                    id = "vector-style:$url",
+                    referenceStyle = MTMapReferenceStyle.CUSTOM(URL(url)),
+                    attributionRules = rules,
+                )
+            },
+        )
+        state.serviceRegistry.put(VectorStyleMutationSupportKey, mutations)
+        onDispose {
+            state.serviceRegistry.remove(VectorStyleSupportKey)
+            state.serviceRegistry.remove(VectorStyleMutationSupportKey)
+        }
+    }
+
+    // スタイルの設置も `key(design.id)` の外。何が起きるかはこのバックエンドが
+    // 宣言した能力で決まる（MapTiler は文書もその場書き換えも受けられる）。
+    MapViewStyleEffect(
+        state = state,
+        style = style,
+        controller = liveMapController.value,
+        onDiagnostics = onStyleDiagnostics,
+    )
 
     // デザイン（スタイル）切替時はコントローラと WebView を作り直し、確実に新スタイルを反映する。
     key(design.id) {
@@ -142,6 +231,7 @@ fun MapTilerMapSurface(
                     state.serviceRegistry.put(MarkerRenderingSupportKey, it.markerRenderingSupport)
                     // RN のホストはここでコントローラを受け取り、共通基底へ渡す。
                     // `remember` の中なのでスタイル切替でコントローラを作り直したときだけ鳴る。
+                    liveMapController.value = it
                     onControllerReady?.invoke(it)
                 }
             }
@@ -149,6 +239,20 @@ fun MapTilerMapSurface(
         // `clear()` ではなく `remove()` なのは他の capability を巻き添えにしないため。
         DisposableEffect(state) {
             onDispose { state.serviceRegistry.remove(MarkerRenderingSupportKey) }
+        }
+
+        // MTMapView destroys its WebView itself; the controller (tile-server
+        // routes, overlay managers, its coroutine scope) is ours to free. Keyed
+        // like the WebView, so a design change frees the one it replaces.
+        DisposableEffect(controller) {
+            onDispose {
+                controller.destroy()
+                // No MapViewBase here to do it: the state (which the app keeps) must
+                // not hold on to the destroyed controller and its overlays. Only if
+                // it is still the attached one -- after a design change the new
+                // controller is attached before this runs.
+                state.detachController(controller)
+            }
         }
 
         // 設定を渡すだけ。**タイル経路に倒すかはコントローラが件数を見て決める**
@@ -181,7 +285,7 @@ fun MapTilerMapSurface(
                 MTMapOptions(
                     cam.position.toLngLat(),
                     MapTilerMapViewController.coreZoomToMapTiler(cam.zoom),
-                    cam.bearing,
+                    CameraBearing.toNativeHeading(cam.bearing),
                     cam.tilt,
                 )
             }
@@ -202,11 +306,25 @@ fun MapTilerMapSurface(
                 object : MTMapViewDelegate {
                     override fun onMapViewInitialized() {
                         mapReady = true
+                        liveController.value = mtController
+                        // 適用済みのスタイル調整はスタイルを読み込み直した時点で消える。
+                        // ここが戻し場所。
+                        //
+                        // **このプロバイダにはスタイル読み込みの通知がこれしかない。**
+                        // ブリッジが中継するイベントのうち `ready` は MapLibre の
+                        // `load` の中で 1 度だけ鳴り、`styledata` はプロパティを 1 つ
+                        // 変えるたびに鳴る（= 再適用が自分を呼び続ける）。Compose は
+                        // デザイン切替でコントローラごと作り直すのでここで足りるが、
+                        // 非 Compose ホストが `setMapDesignType` を直接呼んだ場合は
+                        // 調整が落ちたままになる。
+                        mutations.onStyleLoaded()
+                        // 重なり順の帯の順（下から）に足し直す。
+                        mtController.style?.let { MapTilerOverlayStacking.reset(it) }
                         controller.reapplyRasterLayers()
-                        controller.reapplyPolylines()
+                        controller.reapplyGroundImages()
                         controller.reapplyPolygons()
                         controller.reapplyCircles()
-                        controller.reapplyGroundImages()
+                        controller.reapplyPolylines()
                         controller.mapLoaded.value = true
                         controller.dispatchInitialCameraToOverlays()
                         onLoaded?.invoke(currentState)
@@ -226,7 +344,7 @@ fun MapTilerMapSurface(
                                         // MapTiler のタイルレンダラでヒットテストするのでここで先に見る。
                                         val markerHit =
                                             runCatching {
-                                                controller.handleMarkerTap(point, mtController.getZoom())
+                                                controller.handleMarkerTap(point)
                                             }.getOrDefault(false)
                                         if (!markerHit && !controller.dispatchOverlayTap(point)) {
                                             onClick?.invoke(point)
@@ -269,6 +387,13 @@ fun MapTilerMapSurface(
                                     onMoveEnd?.invoke(pos)
                                 }
 
+                            MTEvent.ON_IDLE ->
+                                // SDK はこのあとで待たせていた層を送る。1 度メインへ戻してから
+                                // 並びを送り直す（MapTilerOverlayStacking.onIdle）。
+                                mtController.style?.let { style ->
+                                    coroutineScope.launch { MapTilerOverlayStacking.onIdle(style) }
+                                }
+
                             else -> Unit
                         }
                     }
@@ -303,8 +428,12 @@ fun MapTilerMapSurface(
                 styleVariant = design.variant,
             )
 
+            // 地図が回って止まったら、同じ zIndex の前後を画面の上下で並べ直す。
+            val drawOrderFrame = rememberMarkerDrawOrderFrame { state.cameraPosition }
             if (mapReady) {
-                markers.forEach { markerState ->
+                // 後に置いたものほど上に描かれる。zIndex が大きいほど、同じなら画面で下ほど上
+                // （[MarkerDrawOrder]）。足した順には任せない。
+                markers.sortedBy { MarkerDrawOrder.of(it.zIndex, it.position, drawOrderFrame) }.forEach { markerState ->
                     key(markerState.id) {
                         MapTilerMarkerOverlay(mtController, markerState)
                     }
@@ -412,7 +541,7 @@ private fun emitCamera(
                 MapCameraPosition(
                     position = center.toGeoPoint(),
                     zoom = MapTilerMapViewController.mapTilerZoomToCore(zoom),
-                    bearing = bearing,
+                    bearing = CameraBearing.bearingFromNativeHeading(bearing),
                     tilt = pitch,
                 )
             // tilt < 0 の擬似表現時は、正ピッチ・前進ターゲットの生状態から論理的な負tilt・元位置へ復元する。

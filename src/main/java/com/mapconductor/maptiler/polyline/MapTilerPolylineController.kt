@@ -18,6 +18,7 @@ class MapTilerPolylineController(
      * 既知のポリラインを再適用する（地図 `ready` 後の復元用）。
      */
     fun reapply() {
-        renderer.reapply(polylineManager.allEntities().map { it.polyline })
+        // タイルで描く線（ハンドル無し）は飛ばす。
+        renderer.reapply(polylineManager.allEntities().mapNotNull { it.polyline as MapTilerPolylineHandle? })
     }
 }

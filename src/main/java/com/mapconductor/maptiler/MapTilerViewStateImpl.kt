@@ -9,6 +9,10 @@ import com.mapconductor.compose.map.BaseMapViewSaver
 import com.mapconductor.core.map.MapCameraPosition
 import com.mapconductor.core.map.MapCameraPositionInterface
 import com.mapconductor.core.map.MapViewState
+import com.mapconductor.core.map.MapViewStateBundle
+import com.maptiler.maptilersdk.map.style.MTMapReferenceStyle
+import com.maptiler.maptilersdk.map.style.MTMapStyleVariant
+import java.net.URL
 import android.os.Bundle
 
 /**
@@ -34,7 +38,10 @@ class MapTilerViewState(
     MapTilerViewStateInterface {
     private var _mapDesignType by mutableStateOf(mapDesignType)
 
-    private var controller: MapTilerMapViewController? = null
+    // Read through the base so that letting go of the controller there (MapViewBase
+    // does it when the map is torn down) leaves nothing behind here.
+    private val controller: MapTilerMapViewController?
+        get() = attachedMapController as? MapTilerMapViewController
 
     override var mapDesignType: MapTilerMapDesignTypeInterface
         get() = _mapDesignType
@@ -45,7 +52,6 @@ class MapTilerViewState(
 
     /** MapView 生成時にコントローラを紐付ける。 */
     fun setController(controller: MapTilerMapViewController) {
-        this.controller = controller
         // 初期カメラは MTMapOptions で地図生成時に渡しているので、接続時には移動しない。
         attachController(controller, moveToInitialCamera = false)
     }
@@ -68,19 +74,51 @@ class MapTilerMapViewSaver : BaseMapViewSaver<MapTilerViewState>() {
         state: MapTilerViewState,
         bundle: Bundle,
     ) {
-        bundle.putString(KEY_DESIGN_ID, state.mapDesignType.id)
+        val design = state.mapDesignType
+        bundle.putString(KEY_DESIGN_ID, design.id)
+        when (val style = design.referenceStyle) {
+            is MTMapReferenceStyle.CUSTOM -> bundle.putString(KEY_CUSTOM_STYLE_URL, style.url.toString())
+            else -> bundle.putString(KEY_REFERENCE_STYLE, style.getName())
+        }
+        design.variant?.let { bundle.putString(KEY_VARIANT, it.name) }
+        MapViewStateBundle.putAttributionRules(bundle, design.attributionRules)
     }
 
     override fun createState(
         stateId: String,
         mapDesignBundle: Bundle?,
         cameraPosition: MapCameraPosition,
-    ): MapTilerViewState {
-        val designId = mapDesignBundle?.getString(KEY_DESIGN_ID)
-        return MapTilerViewState(
-            mapDesignType = MapTilerDesign.fromId(designId),
+    ): MapTilerViewState =
+        MapTilerViewState(
+            mapDesignType = restoreDesign(mapDesignBundle),
             id = stateId,
             initialCameraPosition = cameraPosition,
+        )
+
+    /**
+     * id だけで [MapTilerDesign.fromId] に頼ると、定義に無いデザイン（独自のスタイル URL や
+     * バリアントの組み合わせ）は Streets に化け、attributionRules も落ちる。
+     * スタイルとバリアントも保存して作り直す。
+     */
+    private fun restoreDesign(bundle: Bundle?): MapTilerDesign {
+        val designId = bundle?.getString(KEY_DESIGN_ID)
+        val referenceStyle =
+            bundle?.getString(KEY_CUSTOM_STYLE_URL)?.let { url ->
+                runCatching { MTMapReferenceStyle.CUSTOM(URL(url)) }.getOrNull()
+            } ?: bundle?.getString(KEY_REFERENCE_STYLE)?.let { name ->
+                MTMapReferenceStyle.all().firstOrNull { it.getName() == name }
+            }
+        // スタイルを持たない以前の形式は id から引く。
+        if (designId == null || referenceStyle == null) return MapTilerDesign.fromId(designId)
+        val variant =
+            bundle.getString(KEY_VARIANT)?.let { name ->
+                MTMapStyleVariant.values().firstOrNull { it.name == name }
+            }
+        return MapTilerDesign(
+            id = designId,
+            referenceStyle = referenceStyle,
+            variant = variant,
+            attributionRules = MapViewStateBundle.getAttributionRules(bundle),
         )
     }
 
@@ -90,6 +128,11 @@ class MapTilerMapViewSaver : BaseMapViewSaver<MapTilerViewState>() {
         const val KEY_DESIGN_ID = "maptiler_design_id"
     }
 }
+
+// 公開 API の門番（javap）にコンパニオンの定数が載らないよう、ファイル private にする。
+private const val KEY_REFERENCE_STYLE = "maptiler_reference_style"
+private const val KEY_CUSTOM_STYLE_URL = "maptiler_custom_style_url"
+private const val KEY_VARIANT = "maptiler_variant"
 
 /**
  * [MapTilerViewState] を生成・記憶する Composable ファクトリ。

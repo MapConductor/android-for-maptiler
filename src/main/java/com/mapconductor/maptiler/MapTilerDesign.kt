@@ -1,8 +1,11 @@
 package com.mapconductor.maptiler
 
+import com.mapconductor.core.map.AttributionRule
+import com.mapconductor.core.map.BlankMapStyle
 import com.mapconductor.core.map.MapDesignTypeInterface
 import com.maptiler.maptilersdk.map.style.MTMapReferenceStyle
 import com.maptiler.maptilersdk.map.style.MTMapStyleVariant
+import java.net.URL
 
 /**
  * MapTiler の地図デザイン（リファレンススタイル + バリアント）を表すインターフェース。
@@ -26,10 +29,14 @@ data class MapTilerDesign(
     override val id: String,
     override val referenceStyle: MTMapReferenceStyle,
     override val variant: MTMapStyleVariant? = null,
+    override val attributionRules: List<AttributionRule> = emptyList(),
 ) : MapTilerMapDesignTypeInterface {
     override fun getValue(): String = id
 
     companion object {
+        /** ベースマップ無し。背景色だけのスタイル（core の同梱アセット）を CUSTOM で読む。 */
+        val None = MapTilerDesign("None", MTMapReferenceStyle.CUSTOM(URL(BlankMapStyle.ASSET_FILE_URL)))
+
         val Streets = MapTilerDesign("Streets", MTMapReferenceStyle.STREETS)
         val StreetsDark = MapTilerDesign("StreetsDark", MTMapReferenceStyle.STREETS, MTMapStyleVariant.DARK)
         val StreetsLight = MapTilerDesign("StreetsLight", MTMapReferenceStyle.STREETS, MTMapStyleVariant.LIGHT)
@@ -49,7 +56,7 @@ data class MapTilerDesign(
 
         private val all: List<MapTilerDesign> =
             listOf(
-                Streets, StreetsDark, StreetsLight, Basic, Bright, Satellite, Outdoor, Winter,
+                None, Streets, StreetsDark, StreetsLight, Basic, Bright, Satellite, Outdoor, Winter,
                 Topo, Toner, Dataviz, Backdrop, Ocean, Landscape, Aquarelle, OpenStreetMap,
             )
 

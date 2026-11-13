@@ -2,6 +2,8 @@ package com.mapconductor.maptiler
 
 import com.mapconductor.core.features.GeoPoint
 import com.mapconductor.core.features.GeoRectBounds
+import com.mapconductor.core.map.CameraBearing
+import com.mapconductor.core.map.CameraPaddingEmulation
 import com.mapconductor.core.map.MapCameraPosition
 import com.mapconductor.core.map.MapGesture
 import com.mapconductor.core.map.MapUISettings
@@ -17,6 +19,7 @@ import com.maptiler.maptilersdk.map.options.MTPaddingOptions
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.tan
+import android.content.res.Resources
 
 // カメラの読み書きとジェスチャ設定。
 // MapTiler のズームは MapConductor の論理ズームと 1 段ずれるため
@@ -50,7 +53,7 @@ internal suspend fun MapTilerMapViewController.currentCameraWithRegion(): MapCam
         MapCameraPosition(
             position = center.toGeoPoint(),
             zoom = MapTilerMapViewController.mapTilerZoomToCore(zoom),
-            bearing = bearing,
+            bearing = CameraBearing.bearingFromNativeHeading(bearing),
             tilt = pitch,
             visibleRegion = region,
         )
@@ -62,7 +65,38 @@ internal suspend fun MapTilerMapViewController.currentCameraWithRegion(): MapCam
  * 負のときに元の位置・ズーム・負tilt を復元した [MapCameraPosition] を返す。
  * tilt < 0 の擬似表現（[toCameraOptions]）の逆変換で、MapLibre 実装と同一ロジック。
  */
-internal fun MapTilerMapViewController.recoverLogicalCameraPosition(raw: MapCameraPosition): MapCameraPosition {
+internal fun MapTilerMapViewController.recoverLogicalCameraPosition(raw: MapCameraPosition): MapCameraPosition =
+    CameraPaddingEmulation.fromNativeCamera(
+        recoverNegativeTilt(raw),
+        cameraPaddings,
+        MAPTILER_VERTICAL_FOV,
+        viewportHeightDp(),
+    )
+
+/**
+ * MapTiler の地図（WebView 内の MapLibre GL JS）の縦方向の視野角（度）。MapLibre の既定値で、
+ * 地図の大きさによらず一定（焦点距離 = 地図の高さ × 1.5）。
+ */
+internal const val MAPTILER_VERTICAL_FOV = 36.87
+
+/** 地図の高さ（dp）。WebView の CSS ピクセルは dp と同じ。 */
+internal fun MapTilerMapViewController.viewportHeightDp(): Double {
+    val heightPx = holder.viewportSizeProvider?.invoke()?.height ?: return 0.0
+    val density = Resources.getSystem().displayMetrics.density
+    return heightPx / density.toDouble()
+}
+
+/** パディングを中心のずらしに置き換えたカメラ。paddings が null なら今のパディングを使い続ける。 */
+internal fun MapTilerMapViewController.toNativeCamera(position: MapCameraPosition): MapCameraPosition {
+    position.paddings?.let { cameraPaddings = it }
+    return CameraPaddingEmulation.toNativeCamera(
+        position.copy(paddings = cameraPaddings),
+        MAPTILER_VERTICAL_FOV,
+        viewportHeightDp(),
+    )
+}
+
+private fun MapTilerMapViewController.recoverNegativeTilt(raw: MapCameraPosition): MapCameraPosition {
     val logicalTiltHint = lastLogicalCameraPosition?.tilt
     val pitchAbsDeg = abs(raw.tilt).coerceIn(0.0, 60.0)
     if (logicalTiltHint == null || logicalTiltHint >= 0.0 || pitchAbsDeg == 0.0) return raw
@@ -79,7 +113,11 @@ internal fun MapTilerMapViewController.recoverLogicalCameraPosition(raw: MapCame
         )
     val distanceBackward =
         altitude * cos(pitchAbsRad) * tan(pitchAbsRad) * MapTilerMapViewController.NEGATIVE_TILT_TARGET_DISTANCE_SCALE
-    val originalPosition = Spherical.computeOffset(shiftedCenter, distanceBackward, raw.bearing + 180.0)
+    val originalPosition =
+        Spherical.computeOffset(
+            shiftedCenter, distanceBackward,
+            CameraBearing.toNativeHeading(raw.bearing) + 180.0,
+        )
 
     return raw.copy(
         position = originalPosition,
@@ -90,7 +128,7 @@ internal fun MapTilerMapViewController.recoverLogicalCameraPosition(raw: MapCame
 
 internal fun MapTilerMapViewController.handleMoveCamera(position: MapCameraPosition) {
     lastLogicalCameraPosition = position
-    mtController.jumpTo(toCameraOptions(position))
+    mtController.jumpTo(toCameraOptions(toNativeCamera(position)))
 }
 
 internal fun MapTilerMapViewController.handleAnimateCamera(
@@ -106,7 +144,7 @@ internal fun MapTilerMapViewController.handleAnimateCamera(
         MTFlyToOptions(null, null, null, null, null).apply {
             maxDuration = duration.toDouble()
         }
-    mtController.flyTo(toCameraOptions(position), flyToOptions)
+    mtController.flyTo(toCameraOptions(toNativeCamera(position)), flyToOptions)
 }
 
 internal fun MapTilerMapViewController.handleFitBounds(
@@ -172,7 +210,7 @@ internal fun MapTilerMapViewController.toCameraOptions(camera: MapCameraPosition
         return MTCameraOptions(
             center = camera.position.toLngLat(),
             zoom = MapTilerMapViewController.coreZoomToMapTiler(camera.zoom),
-            bearing = camera.bearing,
+            bearing = CameraBearing.toNativeHeading(camera.bearing),
             pitch = camera.tilt.coerceIn(0.0, 60.0),
         )
     }
@@ -193,14 +231,16 @@ internal fun MapTilerMapViewController.toCameraOptions(camera: MapCameraPosition
             cos(tiltAbsRad) *
             tan(tiltAbsRad) *
             MapTilerMapViewController.NEGATIVE_TILT_TARGET_DISTANCE_SCALE
-    val target = Spherical.computeOffset(camera.position, distanceForward, camera.bearing)
+    val target =
+        Spherical
+            .computeOffset(camera.position, distanceForward, CameraBearing.toNativeHeading(camera.bearing))
     val adjustedZoom =
         camera.zoom + MapTilerMapViewController.NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT * (tiltAbsDeg / 60.0)
 
     return MTCameraOptions(
         center = target.toLngLat(),
         zoom = MapTilerMapViewController.coreZoomToMapTiler(adjustedZoom),
-        bearing = camera.bearing,
+        bearing = CameraBearing.toNativeHeading(camera.bearing),
         pitch = tiltAbsDeg,
     )
 }

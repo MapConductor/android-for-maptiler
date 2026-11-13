@@ -1,5 +1,8 @@
 package com.mapconductor.maptiler
 
+import com.mapconductor.core.circle.CIRCLE_TILE_LAYER_ID
+import com.mapconductor.core.circle.CircleTiler
+import com.mapconductor.core.circle.circleTileRasterLayerState
 import com.mapconductor.core.circle.CircleCapableInterface
 import com.mapconductor.core.circle.OnCircleEventHandler
 import com.mapconductor.core.controller.BaseMapViewController
@@ -9,7 +12,10 @@ import com.mapconductor.core.groundimage.GroundImageCapableInterface
 import com.mapconductor.core.groundimage.GroundImageState
 import com.mapconductor.core.groundimage.OnGroundImageEventHandler
 import com.mapconductor.core.map.CameraRestriction
+import com.mapconductor.core.map.CameraPaddingEmulation
 import com.mapconductor.core.map.MapCameraPosition
+import com.mapconductor.core.map.MapPaddings
+import com.mapconductor.core.map.MapPaddingsInterface
 import com.mapconductor.core.map.MapUISettings
 import com.mapconductor.core.marker.MarkerCapableInterface
 import com.mapconductor.core.marker.MarkerRenderingSupport
@@ -17,10 +23,16 @@ import com.mapconductor.core.marker.MarkerState
 import com.mapconductor.core.marker.MarkerTilingOptions
 import com.mapconductor.core.marker.OnMarkerEventHandler
 import com.mapconductor.core.polygon.OnPolygonEventHandler
+import com.mapconductor.core.polygon.POLYGON_TILE_LAYER_ID
 import com.mapconductor.core.polygon.PolygonCapableInterface
+import com.mapconductor.core.polygon.PolygonTiler
+import com.mapconductor.core.polygon.polygonTileRasterLayerState
 import com.mapconductor.core.polyline.OnPolylineEventHandler
+import com.mapconductor.core.polyline.POLYLINE_TILE_LAYER_ID
 import com.mapconductor.core.polyline.PolylineCapableInterface
 import com.mapconductor.core.polyline.PolylineState
+import com.mapconductor.core.polyline.PolylineTiler
+import com.mapconductor.core.polyline.polylineTileRasterLayerState
 import com.mapconductor.core.raster.RasterLayerCapableInterface
 import com.mapconductor.core.raster.RasterLayerState
 import com.mapconductor.maptiler.circle.MapTilerCircleController
@@ -28,6 +40,7 @@ import com.mapconductor.maptiler.circle.MapTilerCircleOverlayRenderer
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageController
 import com.mapconductor.maptiler.groundimage.MapTilerGroundImageOverlayRenderer
 import com.mapconductor.maptiler.marker.MapTilerMarkerTileRenderer
+import com.mapconductor.maptiler.marker.MarkerIdIndex
 import com.mapconductor.maptiler.polygon.MapTilerPolygonController
 import com.mapconductor.maptiler.polygon.MapTilerPolygonOverlayRenderer
 import com.mapconductor.maptiler.polyline.MapTilerPolylineController
@@ -87,6 +100,15 @@ class MapTilerMapViewController(
      * ため、カメラ状態の読み戻し時に元の負tilt を復元するヒントとして保持する（MapLibre と同方針）。
      */
     internal var lastLogicalCameraPosition: MapCameraPosition? = null
+
+    /**
+     * 今カメラに付いているパディング（dp）。
+     *
+     * `MTMapViewController.setPadding` は使わない。カメラのオプションに載らず、付けた瞬間に
+     * 画面がずれて flyTo の始まりが跳ぶため。代わりにカメラ中心をずらして再現し
+     * （[CameraPaddingEmulation]）、読むときに元へ戻すためにここで覚えておく。
+     */
+    internal var cameraPaddings: MapPaddingsInterface = MapPaddings.Zeros
 
     /** マーカータイリング設定。null は [MarkerTilingOptions.Default] と同じ。 */
     var markerTilingOptions: MarkerTilingOptions? = null
@@ -203,8 +225,11 @@ class MapTilerMapViewController(
     }
 
     override fun hasMarker(state: MarkerState): Boolean =
-        _markers.value.any { it.id == state.id } ||
-            (markerTileRenderer?.markers?.any { it.id == state.id } ?: false)
+        overlayMarkerIds.contains(_markers.value, state.id) ||
+            (markerTileRenderer?.markers?.let { tiledMarkerIds.contains(it, state.id) } ?: false)
+
+    private val tiledMarkerIds = MarkerIdIndex()
+    private val overlayMarkerIds = MarkerIdIndex()
 
     // --- Marker clustering (android-marker-clustering) 連携 ---
 
@@ -316,6 +341,41 @@ class MapTilerMapViewController(
         registerOverlayController(polygonController)
         registerOverlayController(circleController)
         registerOverlayController(groundImageController)
+
+        // Many polygons are drawn as raster tiles, shown through the same RasterLayer
+        // controller as the marker tiles (upsert / removeById, never the app's layers).
+        polygonController.tiler =
+            PolygonTiler().apply {
+                onTemplate = { template, tileSize ->
+                    if (template != null) {
+                        rasterLayerController.upsert(polygonTileRasterLayerState(template, tileSize))
+                    } else {
+                        rasterLayerController.removeById(POLYGON_TILE_LAYER_ID)
+                    }
+                }
+            }
+
+        // Many polylines too: the same raster layer path, in the polyline band.
+        polylineController.tiler =
+            PolylineTiler().apply {
+                onTemplate = { template, tileSize ->
+                    if (template != null) {
+                        rasterLayerController.upsert(polylineTileRasterLayerState(template, tileSize))
+                    } else {
+                        rasterLayerController.removeById(POLYLINE_TILE_LAYER_ID)
+                    }
+                }
+            }
+        circleController.tiler =
+            CircleTiler().apply {
+                onTemplate = { template, tileSize ->
+                    if (template != null) {
+                        rasterLayerController.upsert(circleTileRasterLayerState(template, tileSize))
+                    } else {
+                        rasterLayerController.removeById(CIRCLE_TILE_LAYER_ID)
+                    }
+                }
+            }
         // ホルダーの同期投影にカメラを供給する。ホルダーはコントローラより先に作られるので
         // ここで繋ぐ。これが無いと toScreenOffset が常に null を返し、InfoBubble と
         // マーカー追従が理由も出ずに落ちる（android-for-longdo と同じ）。
@@ -323,6 +383,9 @@ class MapTilerMapViewController(
     }
 
     override suspend fun clearOverlays() {
+        // オーバーレイ経路のマーカー（MapTilerMarkerOverlay で描くもの）。Longdo と同じく
+        // 一覧を空にすれば Compose 側が外す。これが無いとタイル経路でないマーカーが残っていた。
+        _markers.value = emptyList()
         rasterLayerController.clear()
         polylineController.clear()
         polygonController.clear()
@@ -331,6 +394,8 @@ class MapTilerMapViewController(
         markerRasterId?.let { rasterLayerController.removeById(it) }
         markerRasterId = null
         markerTileRenderer?.clear()
+        // 拡張モジュール（クラスタリングなど）が登録した Strategy のマーカーも消す。
+        clearStrategyMarkerControllers()
     }
 
     override fun destroy() {
